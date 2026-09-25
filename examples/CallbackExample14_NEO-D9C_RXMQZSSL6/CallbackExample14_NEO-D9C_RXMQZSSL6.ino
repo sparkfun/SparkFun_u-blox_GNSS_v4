@@ -84,6 +84,10 @@ void setup()
 
   Serial.println(F("u-blox NEO-D9C connected"));
 
+  // newCfgValset() writes to the RAM and Battery-backed-RAM layers by default (VAL_LAYER_RAM_BBR).
+  // To use a different layer, pass it as the parameter. E.g. for RAM only:
+  //   newCfgValset(VAL_LAYER_RAM)
+  // VAL_LAYER_ALL also saves the settings in Flash (if the module has Flash).
   myQZSS.newCfgValset(); // Create a new Configuration Interface message - this defaults to VAL_LAYER_RAM_BBR (change in RAM and BBR)
   myQZSS.addCfgValset(UBLOX_CFG_MSGOUT_UBX_RXM_QZSSL6_I2C,   1);     // Output QZSS-L6 message on the I2C port 
   myQZSS.addCfgValset(UBLOX_CFG_MSGOUT_UBX_RXM_QZSSL6_UART1, 1);     // Output QZSS-L6 message on UART1

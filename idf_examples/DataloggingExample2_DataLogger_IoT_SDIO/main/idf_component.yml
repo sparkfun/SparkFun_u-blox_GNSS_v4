@@ -1,0 +1,5 @@
+dependencies:
+  sparkfun/sparkfun_u-blox_gnss_v4:
+    version: "*"
+    # Use the library from this repository. (override_path is removed automatically when the example is downloaded from the registry)
+    override_path: "../../../"

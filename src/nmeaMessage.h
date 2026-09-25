@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include <Arduino.h>
+#include "sfe_platform.h"
 #include <string.h>
 
 #include "u-blox_config_keys.h" // Needed for the UBLOX_CFG_MSGOUT_NMEA_ID keys
@@ -198,7 +198,7 @@ public:
      * @return true if 'fieldName' was found (and *value filled in); false if 'buffer' is null,
      * malformed, too short, 'blockIndex' is out of range, or the field name was not found.
      */
-    bool extractFieldFrom(const uint8_t *buffer, const char *fieldName, String &value,
+    bool extractFieldFrom(const uint8_t *buffer, const char *fieldName, sfe_string_t &value,
                            const void *fieldsOverride = nullptr, uint8_t numFieldsOverride = 0,
                            uint16_t blockIndex = 0) const
     {
@@ -207,7 +207,7 @@ public:
 
         if (*buffer != '$') // NMEA messages always start with $
         {
-            value = String(""); // Clear value just in case
+            value = ""; // Clear value just in case
             return false;
         }
 
@@ -218,7 +218,7 @@ public:
         // in a GSV group often has fewer than 4 satellites) is checked below too.
         if ((fieldsOverride != nullptr) && (blockIndex >= _maxNumBlocks))
         {
-            value = String("");
+            value = "";
             return false;
         }
 
@@ -239,7 +239,7 @@ public:
             uint8_t numFooterFields = _numFields - _numHeaderFields;
             if (totalFields < ((uint16_t)_numHeaderFields + numFooterFields))
             {
-                value = String(""); // Sentence too short to even hold the header + footer - malformed
+                value = ""; // Sentence too short to even hold the header + footer - malformed
                 return false;
             }
             actualBlockCount = (totalFields - _numHeaderFields - numFooterFields) / _numBlockFields;
@@ -247,7 +247,7 @@ public:
             if ((fieldsOverride != nullptr) && (blockIndex >= actualBlockCount))
             {
                 // Within maxNumBlocks, but beyond what THIS sentence actually contains
-                value = String("");
+                value = "";
                 return false;
             }
         }
@@ -309,31 +309,31 @@ public:
             // If x reached strlen(buffer), the field was not found
             if (x == strlen((const char *)buffer))
             {
-                value = String(""); // Clear value just in case
+                value = ""; // Clear value just in case
                 return false;
             }
 
             // If fieldEnd is 0 or 1 more than fieldStart, the field is empty
             if ((fieldEnd - fieldStart) <= 1)
             {
-                value = String(""); // Clear value just in case
+                value = ""; // Clear value just in case
                 return false;
             }
 
             switch (fields[i].nmeaDataType)
             {
             default:
-                value = String("Unknown");
+                value = "Unknown";
                 return false;
             case nmeaDataTypeString:
             case nmeaDataTypeTime:
                 // Copy from the character after fieldStart
                 // to the character before fieldEnd
                 fieldStart++;
-                value = String("");
+                value = "";
                 while (fieldStart < fieldEnd)
                 {
-                    value += String((char)*fieldStart);
+                    value += (char)*fieldStart;
                     fieldStart++;
                 }
                 return true;
@@ -358,7 +358,7 @@ public:
                         numDPs++;
                     }
                 }
-                value = String(field, numDPs);
+                sfe_string_from_double(value, field, numDPs);
             }
                 return true;
             case nmeaDataTypeDDDMM:
@@ -382,13 +382,14 @@ public:
                         numDPs++;
                     }
                 }
-                value = String(field, numDPs);
+                sfe_string_from_double(value, field, numDPs);
             }
                 return true;
             case nmeaDataTypeChar:
             case nmeaDataTypeDigit:
                 fieldStart++;
-                value = String((char)*fieldStart);
+                value = "";
+                value += (char)*fieldStart;
                 return true;
             case nmeaDataTypeNumeric:
             {
@@ -421,12 +422,12 @@ public:
                 }
                 if (isNegative)
                     field = -field;
-                value = String(field, numDPs);
+                sfe_string_from_double(value, field, numDPs);
             }
                 return true;
             }
         }
-        value = String(""); // Clear value just in case
+        value = ""; // Clear value just in case
         return false; // Field name not found
     }
 

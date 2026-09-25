@@ -1,0 +1,46 @@
+menu "Example Configuration"
+
+    config EXAMPLE_I2C_SDA_GPIO
+        int "I2C SDA GPIO"
+        range 0 63
+        default 21
+        help
+            GPIO connected to the GNSS module's SDA pin.
+
+    config EXAMPLE_I2C_SCL_GPIO
+        int "I2C SCL GPIO"
+        range 0 63
+        default 22
+        help
+            GPIO connected to the GNSS module's SCL pin.
+
+    config EXAMPLE_SD_SCK_GPIO
+        int "microSD SPI SCK GPIO"
+        range 0 63
+        default 18
+
+    config EXAMPLE_SD_POCI_GPIO
+        int "microSD SPI POCI (MISO) GPIO"
+        range 0 63
+        default 19
+
+    config EXAMPLE_SD_PICO_GPIO
+        int "microSD SPI PICO (MOSI) GPIO"
+        range 0 63
+        default 23
+
+    config EXAMPLE_SD_CS_GPIO
+        int "microSD SPI chip select GPIO"
+        range 0 63
+        default 5
+        help
+            Default 5 matches the SparkFun Thing Plus C (and the Arduino example).
+
+    config EXAMPLE_LED_GPIO
+        int "LED GPIO (-1 to disable)"
+        range -1 63
+        default 13
+        help
+            The LED is flashed each time data is written to the SD card. Default 13 matches the SparkFun Thing Plus C LED.
+
+endmenu

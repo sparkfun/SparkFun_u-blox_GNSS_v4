@@ -1,0 +1,57 @@
+name: IDF Compile Test
+
+# Test-compile an ESP-IDF example, using the ESP-IDF command line (idf.py),
+# to check that the library still builds as a native ESP-IDF component
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  compile-idf-example:
+    runs-on: ubuntu-latest
+
+    # Run the job inside the official Espressif ESP-IDF Docker image
+    # https://hub.docker.com/r/espressif/idf
+    container: espressif/idf:${{ matrix.idf_version }}
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        # The ESP-IDF versions to build with
+        # release-v5.3 is the minimum version supported by the component (see idf_component.yml)
+        # release-v6.1 is the version the examples were tested with
+        idf_version:
+          - release-v5.3
+          - release-v6.1
+
+        # The target chip. DataloggingExample2 uses 4-bit SDMMC, so it needs an ESP32 (or ESP32-S3 / ESP32-P4)
+        target:
+          - esp32
+
+        # The example(s) to build
+        example:
+          - DataloggingExample2_DataLogger_IoT_SDIO
+
+    steps:
+      # Check out into a folder called sparkfun_u-blox_gnss_v4 - the name of the component.
+      # The example's main/idf_component.yml finds the component with override_path: "../../../"
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: sparkfun_u-blox_gnss_v4
+
+      - name: Branch name
+        run: echo running on branch ${GITHUB_REF##*/}
+
+      - name: Compile IDF Example
+        shell: bash
+        run: |
+          # The container runs as root but the checkout is owned by the runner. Tell git that is OK
+          git config --global --add safe.directory '*'
+          # Set up the ESP-IDF environment (the container's entrypoint does not run in a GitHub Actions job)
+          . $IDF_PATH/export.sh
+          cd sparkfun_u-blox_gnss_v4/idf_examples/${{ matrix.example }}
+          idf.py set-target ${{ matrix.target }}
+          idf.py build
