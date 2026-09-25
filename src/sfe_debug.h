@@ -53,7 +53,7 @@
 
 #pragma once
 
-#include <Arduino.h>
+#include "sfe_platform.h"
 #include "sfe_bus.h"
 
 namespace SparkFun_UBLOX_GNSS

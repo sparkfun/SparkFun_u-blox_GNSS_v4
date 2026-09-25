@@ -45,7 +45,7 @@
 
 #pragma once
 
-#include <Arduino.h>
+#include "sfe_platform.h"
 #include <string.h>
 
 #include "u-blox_config_keys.h" // UBX_CFG_* type tags - needed by ubxAnyType::operator double() and ubxMessage::extractFieldFrom() below

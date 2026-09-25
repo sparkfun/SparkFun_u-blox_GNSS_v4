@@ -1,0 +1,47 @@
+version: "4.1.0"
+description: "SparkFun u-blox GNSS v4: I2C, SPI and UART driver for u-blox GNSS modules (UBX, NMEA, RTCM)"
+url: "https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4"
+repository: "https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4.git"
+issues: "https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4/issues"
+license: "MIT"
+maintainers:
+  - "SparkFun Electronics <techsupport@sparkfun.com>"
+tags:
+  - gnss
+  - gps
+  - u-blox
+  - ubx
+  - nmea
+  - rtcm
+  - rtk
+  - sparkfun
+dependencies:
+  # The i2c_master driver and the split esp_driver_* components need ESP-IDF v5.3 or later
+  idf: ">=5.3"
+files:
+  exclude:
+    - "examples/**/*"  # Arduino examples. The ESP-IDF examples are in idf_examples
+    - "docs/**/*"
+    - "Utils/**/*"
+    - "keys/**/*"
+    - "AGENTS/**/*"
+    - ".github/**/*"
+    - "*Dockerfile"    # Arduino.Dockerfile, IDF.Dockerfile
+    - "*.bin"          # Local build outputs
+    - "*.elf"
+    - "*.bat"
+examples:
+  - path: idf_examples/PollingExample1_PositionVelocityTime
+  - path: idf_examples/PollingExample2_PositionVelocityTime_Serial
+  - path: idf_examples/PollingExample3_PositionVelocityTime_SPI
+  - path: idf_examples/PollingExample4_SECUNIQID
+  - path: idf_examples/PollingExample5_GPZDA
+  - path: idf_examples/PeriodicExample1_NAVHPPOSLLH
+  - path: idf_examples/PeriodicExample2_GPGGA
+  - path: idf_examples/CallbackExample1_NAVHPPOSLLH
+  - path: idf_examples/CallbackExample2_GPRMC
+  - path: idf_examples/CallbackExample4_NAVSAT
+  - path: idf_examples/CallbackExample7_NMEA_GSV
+  - path: idf_examples/CallbackExample8_MONCOMMS
+  - path: idf_examples/DataloggingExample1_RAWX_and_SFRBX
+  - path: idf_examples/DataloggingExample2_DataLogger_IoT_SDIO

@@ -1,0 +1,6 @@
+# 1000Hz FreeRTOS tick: lets the library's short delays (1ms) be true sleeps. Recommended
+CONFIG_FREERTOS_HZ=1000
+
+# Long file names are needed for the YYYYMMDDhhmmss.ubx log file name
+# (FATFS defaults to 8.3 names on older versions of ESP-IDF)
+CONFIG_FATFS_LFN_HEAP=y

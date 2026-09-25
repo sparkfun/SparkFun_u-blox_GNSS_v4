@@ -4,12 +4,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 ARG CORE_VERSION=3.3.11
 
-# The example to be compiled
-ARG EXAMPLE=Example1_PositionVelocityTime
-
-# arduino-cli warnings: none default more all
-ARG WARNINGS=default
-
 # Get curl, python3 and git
 RUN apt-get update \
     && apt-get install -y curl python3 python3-pip python3-venv git \
@@ -47,6 +41,17 @@ RUN arduino-cli config set library.enable_unsafe_install true
 
 # Copy source and build deployment image
 FROM upstream AS deployment
+
+# Put the ARGs here - so that changing them doesn't require upstream to be rebuilt
+
+# The example to be compiled
+ARG EXAMPLE=PollingExample1_PositionVelocityTime
+
+#  The component name
+ARG COMPONENT=sparkfun_u-blox_gnss_v4
+
+# arduino-cli warnings: none default more all
+ARG WARNINGS=default
 
 # Create a folder for the library source
 RUN cd /root \

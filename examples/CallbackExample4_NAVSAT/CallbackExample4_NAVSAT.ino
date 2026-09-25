@@ -102,6 +102,11 @@ void setup()
     delay (1000);
   }
 
+  // setCfgValset() writes to the RAM and Battery-backed-RAM layers by default (VAL_LAYER_RAM_BBR).
+  // To use a different layer, add it as the third parameter. E.g. for RAM only:
+  //   setCfgValset(UBLOX_CFG_MSGOUT_..., n, VAL_LAYER_RAM)
+  // VAL_LAYER_ALL also saves the setting in Flash (if the module has Flash).
+
   // Enable the NAV SAT Message on I2C, every two navigation cycles
   myGNSS.setCfgValset(UBLOX_CFG_MSGOUT_UBX_NAV_SAT_I2C, 2);
 

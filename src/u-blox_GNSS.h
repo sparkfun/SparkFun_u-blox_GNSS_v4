@@ -30,7 +30,7 @@
 
 #pragma once
 
-#include <Arduino.h>
+#include "sfe_platform.h"
 #include "u-blox_config_keys.h"
 #include "u-blox_structs.h"
 #include "u-blox_external_typedefs.h"
@@ -322,7 +322,9 @@ public:
    * some SAMD boards).
    * @param printLimitedDebug If true, only print messages flagged as "important". Defaults to false (print everything).
    */
-#if defined(ARDUINO_ARCH_SAMD)                                                        // Is this a SAMD board?
+#if defined(SFE_ESP_IDF)                                                              // Native ESP-IDF: default to stdout (the console)
+  void enableDebugging(sfe_print_t &debugPort = SparkFun_UBLOX_GNSS::sfeStdout, bool printLimitedDebug = false); // Given a port to print to, enable debug messages. Default to all, not important-only.
+#elif defined(ARDUINO_ARCH_SAMD)                                                      // Is this a SAMD board?
 #if defined(USB_VID)                                                                  // Is the USB Vendor ID defined?
 #if (USB_VID == 0x1B4F)                                                               // Is this a SparkFun board?
 #if !defined(ARDUINO_SAMD51_THING_PLUS) & !defined(ARDUINO_SAMD51_MICROMOD)           // If it is not a SAMD51 Thing Plus or SAMD51 MicroMod
@@ -614,7 +616,7 @@ public:
    * @param maxWait Milliseconds to wait between messages when mgaAck is NO. Defaults to defaultMGAdelay.
    * @return The number of bytes successfully pushed.
    */
-  size_t pushAssistNowData(const String &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck = SFE_UBLOX_MGA_ASSIST_ACK_NO, uint16_t maxWait = defaultMGAdelay);
+  size_t pushAssistNowData(const sfe_string_t &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck = SFE_UBLOX_MGA_ASSIST_ACK_NO, uint16_t maxWait = defaultMGAdelay);
   /** @brief As pushAssistNowData(const String&, ...), but takes the AssistNow data as a raw byte buffer instead of a String. */
   size_t pushAssistNowData(const uint8_t *dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck = SFE_UBLOX_MGA_ASSIST_ACK_NO, uint16_t maxWait = defaultMGAdelay);
   /**
@@ -628,7 +630,7 @@ public:
    * @param maxWait Milliseconds to wait between messages when mgaAck is NO. Defaults to defaultMGAdelay.
    * @return The number of bytes successfully pushed.
    */
-  size_t pushAssistNowData(bool skipTime, const String &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck = SFE_UBLOX_MGA_ASSIST_ACK_NO, uint16_t maxWait = defaultMGAdelay);
+  size_t pushAssistNowData(bool skipTime, const sfe_string_t &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck = SFE_UBLOX_MGA_ASSIST_ACK_NO, uint16_t maxWait = defaultMGAdelay);
   /** @brief As pushAssistNowData(bool, const String&, ...), but takes the AssistNow data as a raw byte buffer instead of a String. */
   size_t pushAssistNowData(bool skipTime, const uint8_t *dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck = SFE_UBLOX_MGA_ASSIST_ACK_NO, uint16_t maxWait = defaultMGAdelay);
   /**
@@ -642,7 +644,7 @@ public:
    * @param maxWait Milliseconds to wait between messages when mgaAck is NO. Defaults to defaultMGAdelay.
    * @return The number of bytes successfully pushed.
    */
-  size_t pushAssistNowData(size_t offset, bool skipTime, const String &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck = SFE_UBLOX_MGA_ASSIST_ACK_NO, uint16_t maxWait = defaultMGAdelay);
+  size_t pushAssistNowData(size_t offset, bool skipTime, const sfe_string_t &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck = SFE_UBLOX_MGA_ASSIST_ACK_NO, uint16_t maxWait = defaultMGAdelay);
   /** @brief As pushAssistNowData(size_t, bool, const String&, ...), but takes the AssistNow data as a raw byte buffer instead of a String. */
   size_t pushAssistNowData(size_t offset, bool skipTime, const uint8_t *dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck = SFE_UBLOX_MGA_ASSIST_ACK_NO, uint16_t maxWait = defaultMGAdelay);
 
@@ -721,7 +723,7 @@ public:
    * @return The byte offset of the first matching UBX-MGA-ANO message, or numDataBytes if no exact match
    *         was found.
    */
-  size_t findMGAANOForDate(const String &dataBytes, size_t numDataBytes, uint16_t year, uint8_t month, uint8_t day, uint8_t daysIntoFuture = 0);
+  size_t findMGAANOForDate(const sfe_string_t &dataBytes, size_t numDataBytes, uint16_t year, uint8_t month, uint8_t day, uint8_t daysIntoFuture = 0);
   /** @brief As findMGAANOForDate(const String&, ...), but takes the AssistNow Offline data as a raw byte buffer instead of a String. */
   size_t findMGAANOForDate(const uint8_t *dataBytes, size_t numDataBytes, uint16_t year, uint8_t month, uint8_t day, uint8_t daysIntoFuture = 0);
 
@@ -847,13 +849,13 @@ public:
   bool setSPIInput(uint8_t comSettings, uint8_t layer = VAL_LAYER_RAM_BBR, uint16_t maxWait = kUBLOXGNSSDefaultMaxWait);   // Configure SPI port to output UBX, NMEA, RTCM3, SPARTN or a combination thereof
 
   /** @brief Direct only NMEA output characters to outputPort, in addition to any port set by setOutputPort(). */
-  void setNMEAOutputPort(Print &outputPort); // Sets the internal variable for the port to direct only NMEA characters to
+  void setNMEAOutputPort(sfe_print_t &outputPort); // Sets the internal variable for the port to direct only NMEA characters to
   /** @brief Direct only RTCM output characters to outputPort, in addition to any port set by setOutputPort(). */
-  void setRTCMOutputPort(Print &outputPort); // Sets the internal variable for the port to direct only RTCM characters to
+  void setRTCMOutputPort(sfe_print_t &outputPort); // Sets the internal variable for the port to direct only RTCM characters to
   /** @brief Direct only UBX output characters to outputPort, in addition to any port set by setOutputPort(). */
-  void setUBXOutputPort(Print &outputPort);  // Sets the internal variable for the port to direct only UBX characters to
+  void setUBXOutputPort(sfe_print_t &outputPort);  // Sets the internal variable for the port to direct only UBX characters to
   /** @brief Direct all output characters (UBX, NMEA and RTCM) to outputPort. */
-  void setOutputPort(Print &outputPort);     // Sets the internal variable for the port to direct ALL characters to
+  void setOutputPort(sfe_print_t &outputPort);     // Sets the internal variable for the port to direct ALL characters to
 
   // Reset to defaults
 
@@ -1347,7 +1349,7 @@ public:
    *
    * @return The chip ID as an uppercase hex String, or an empty String if getSECUNIQID() has not succeeded.
    */
-  String getUniqueChipIdStr(void); // Returns the uniqueId bytes as a hex String, e.g. "0123456789AB" - see ubxSECUNIQID.h
+  sfe_string_t getUniqueChipIdStr(void); // Returns the uniqueId bytes as a hex String, e.g. "0123456789AB" - see ubxSECUNIQID.h
 
   // General configuration (used only on protocol v27 and higher - ie, ZED-F9P)
 
@@ -2831,9 +2833,9 @@ public:
    * @param fieldName The field's name, as declared in the message's field table.
    * @return The field's value as a String, or an empty String if fieldName is unknown.
    */
-  String getNmeaMessageFieldCallback(nmeaMessage *theMessage, const char *fieldName); // Factory: extracts a named field from the message a callback just fired for, reading from its _callbackStorage
+  sfe_string_t getNmeaMessageFieldCallback(nmeaMessage *theMessage, const char *fieldName); // Factory: extracts a named field from the message a callback just fired for, reading from its _callbackStorage
   /** @brief As getNmeaMessageFieldCallback(), but reads the message's live _storage instead of a callback-time snapshot. */
-  String getNmeaMessageField(nmeaMessage *theMessage, const char *fieldName); // Factory: extracts a named field from the message, reading from its _storage
+  sfe_string_t getNmeaMessageField(nmeaMessage *theMessage, const char *fieldName); // Factory: extracts a named field from the message, reading from its _storage
   /**
    * @brief Extract a named field from one repeated block of a variable-length NMEA message (e.g. one
    *        satellite entry of GSV), reading the callback-time snapshot.
@@ -2843,9 +2845,9 @@ public:
    * @param fieldName The block field's name, as declared in the message's block field table.
    * @return The field's value as a String, or an empty String if fieldName is unknown.
    */
-  String getNmeaMessageBlockFieldCallback(nmeaMessage *theMessage, uint16_t blockIndex, const char *fieldName); // Factory: extracts a named field from repeated block 'blockIndex' of a variable-length message (e.g. GSV), reading from its _callbackStorage
+  sfe_string_t getNmeaMessageBlockFieldCallback(nmeaMessage *theMessage, uint16_t blockIndex, const char *fieldName); // Factory: extracts a named field from repeated block 'blockIndex' of a variable-length message (e.g. GSV), reading from its _callbackStorage
   /** @brief As getNmeaMessageBlockFieldCallback(), but reads the message's live _storage instead of a callback-time snapshot. */
-  String getNmeaMessageBlockField(nmeaMessage *theMessage, uint16_t blockIndex, const char *fieldName); // Factory: extracts a named field from repeated block 'blockIndex' of a variable-length message (e.g. GSV), reading from its _storage
+  sfe_string_t getNmeaMessageBlockField(nmeaMessage *theMessage, uint16_t blockIndex, const char *fieldName); // Factory: extracts a named field from repeated block 'blockIndex' of a variable-length message (e.g. GSV), reading from its _storage
 
   nmeaMessageVector nmeaMessages; // v4 scaffolding - the registry of per-message objects
 
@@ -2867,7 +2869,7 @@ public:
    * @param value Filled in with the field's value on success.
    * @return True if the message/field were found and read successfully.
    */
-  bool getNMEAfield(const char *msgId, const char *field, String &value); // Generic field read, by message ID
+  bool getNMEAfield(const char *msgId, const char *field, sfe_string_t &value); // Generic field read, by message ID
 
   /**
    * @brief Enable or disable automatic (unsolicited) output of a registered NMEA message, by sentence ID.

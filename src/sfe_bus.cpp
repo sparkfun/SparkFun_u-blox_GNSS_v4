@@ -27,7 +27,10 @@
  * @file sfe_bus.cpp
  */
 
-#include <Arduino.h>
+#include "sfe_platform.h"
+
+#if defined(SFE_ARDUINO) // This file contains the Arduino implementation. See sfe_bus_esp_idf.cpp for ESP-IDF
+
 #include "sfe_bus.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -449,3 +452,5 @@ namespace SparkFun_UBLOX_GNSS
 #endif
   }
 }
+
+#endif // SFE_ARDUINO

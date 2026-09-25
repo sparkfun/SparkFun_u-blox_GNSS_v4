@@ -83,6 +83,10 @@ void setup()
 
   Serial.println(F("u-blox NEO-D9S connected"));
 
+  // newCfgValset() writes to the RAM and Battery-backed-RAM layers by default (VAL_LAYER_RAM_BBR).
+  // To use a different layer, pass it as the parameter. E.g. for RAM only:
+  //   newCfgValset(VAL_LAYER_RAM)
+  // VAL_LAYER_ALL also saves the settings in Flash (if the module has Flash).
   myLBand.newCfgValset(); // Create a new Configuration Interface message - this defaults to VAL_LAYER_RAM_BBR (change in RAM and BBR)
   myLBand.addCfgValset(UBLOX_CFG_PMP_CENTER_FREQUENCY,     myLBandFreq); // Default 1539812500 Hz
   myLBand.addCfgValset(UBLOX_CFG_PMP_SEARCH_WINDOW,        2200);        // Default 2200 Hz
