@@ -1,0 +1,20 @@
+name: Upload to IDF Component Registry
+on:
+  workflow_dispatch:
+    branches:
+      - main
+  release:
+    types:
+      - published
+
+jobs:
+  upload_components:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: espressif/upload-components-ci-action@v2
+        with:
+          components: "sparkfun_u-blox_gnss_v4: ."
+          namespace: "sparkfun"
