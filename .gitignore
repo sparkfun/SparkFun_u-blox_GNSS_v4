@@ -67,3 +67,6 @@ idf_examples/**/sdkconfig
 idf_examples/**/sdkconfig.old
 idf_examples/**/managed_components/
 idf_examples/**/dependencies.lock
+
+# ESP-IDF dist files
+dist/*
