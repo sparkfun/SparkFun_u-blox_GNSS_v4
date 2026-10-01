@@ -55,6 +55,12 @@ This library is the new and improved version of the very popular SparkFun u-blox
   * But we have included many helper methods to make migrating to v4 as easy as possible
   * Please see [PollingExample1_PositionVelocityTime](examples/PollingExample1_PositionVelocityTime/PollingExample1_PositionVelocityTime.ino) for details
 
+## Documentation
+
+API documentation is generated with Doxygen and published to GitHub Pages from the `main` branch:
+
+[**https://docs.sparkfun.com/SparkFun_u-blox_GNSS_v4**](https://docs.sparkfun.com/SparkFun_u-blox_GNSS_v4)
+
 ## Compatibility
 
 v4 of the library provides support for generation X20, F9 and M10 u-blox GNSS modules, which support the Configuration Interface
@@ -135,10 +141,6 @@ The first time you run each Dockerfile, it will take a long time to create the U
 * [**library.properties**](https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4/blob/main/library.properties) - General library properties for the Arduino package manager.
 * [**keys**](https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4/blob/main/keys) - The u-blox Configuration Interface Key IDs extracted from multiple Interface Descriptions
 * [**Utils**](https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4/blob/main/Utils) - Python utilities we wrote to help analyze UBX/NMEA/RTCM data and UBX format log files
-
-## Documentation
-
-API documentation is generated with Doxygen and published to GitHub Pages from the `main` branch.
 
 ## License Information
 
