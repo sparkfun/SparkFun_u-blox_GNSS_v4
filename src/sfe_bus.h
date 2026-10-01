@@ -29,9 +29,7 @@
 
 #pragma once
 
-#include <Arduino.h>
-#include <Wire.h>
-#include <SPI.h>
+#include "sfe_platform.h"
 
 namespace SparkFun_UBLOX_GNSS
 {
@@ -134,6 +132,8 @@ namespace SparkFun_UBLOX_GNSS
      */
     virtual uint8_t readBytes(uint8_t *data, uint8_t length) = 0;
   };
+
+#if defined(SFE_ARDUINO)
 
   // The SfeI2C device defines behavior for I2C implementation based around the TwoWire class (Wire).
   // This is Arduino specific.
@@ -548,4 +548,14 @@ namespace SparkFun_UBLOX_GNSS
     Print *_outputPort;
   };
 
+#endif // SFE_ARDUINO
+
 };
+
+#if defined(SFE_ARDUINO)
+// The type used by the public API for debug and message output ports: enableDebugging(), setNMEAOutputPort(), etc.
+typedef Print sfe_print_t;
+#elif defined(SFE_ESP_IDF)
+// ESP-IDF bus classes (SfeI2C, SfeSPI, SfeSerial), output ports (SfeOutput) and SfePrint
+#include "sfe_bus_esp_idf.h"
+#endif

@@ -1,0 +1,17 @@
+menu "SparkFun u-blox GNSS v4"
+
+    config SFE_UBLOX_GNSS_I2C_CLOCK_HZ
+        int "I2C clock speed (Hz)"
+        range 10000 400000
+        default 400000
+        help
+            The I2C (SCL) clock speed used for the GNSS module. u-blox modules support up to 400kHz.
+
+    config SFE_UBLOX_GNSS_I2C_TIMEOUT_MS
+        int "I2C transaction timeout (ms)"
+        range 10 5000
+        default 100
+        help
+            Timeout for each I2C transaction. Prevents the task from hanging if the module is disconnected.
+
+endmenu

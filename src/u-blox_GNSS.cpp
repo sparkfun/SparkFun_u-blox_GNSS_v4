@@ -28,7 +28,7 @@
  * 
  */
 
-#include <Arduino.h>
+#include "sfe_platform.h"
 #include "u-blox_GNSS.h"
 
 DevUBLOXGNSS::DevUBLOXGNSS(void)
@@ -36,8 +36,8 @@ DevUBLOXGNSS::DevUBLOXGNSS(void)
   // Constructor
   if (debugPin >= 0)
   {
-    pinMode((uint8_t)debugPin, OUTPUT);
-    digitalWrite((uint8_t)debugPin, HIGH);
+    sfe_pin_output((uint8_t)debugPin);
+    sfe_pin_write((uint8_t)debugPin, true);
   }
 
   _logNMEA.all = 0;                             // Default to passing no NMEA messages to the file buffer
@@ -526,7 +526,7 @@ bool DevUBLOXGNSS::isConnected(uint16_t maxWait)
 
 // Enable or disable the printing of sent/response HEX values.
 // Use this in conjunction with 'Transport Logging' from the Universal Reader Assistant to see what they're doing that we're not
-void DevUBLOXGNSS::enableDebugging(Print &debugPort, bool printLimitedDebug)
+void DevUBLOXGNSS::enableDebugging(sfe_print_t &debugPort, bool printLimitedDebug)
 {
   _debugSerial.init(debugPort); // Grab which port the user wants us to use for debugging
   _printDebug = true; // Should we print the commands we send? Good for debugging
@@ -634,7 +634,7 @@ bool DevUBLOXGNSS::checkUbloxInternal(ubxPacket *incomingUBX, uint8_t requestedC
 // Returns true if new bytes are available
 bool DevUBLOXGNSS::checkUbloxI2C(ubxPacket *incomingUBX, uint8_t requestedClass, uint8_t requestedID)
 {
-  if (millis() - lastCheck >= i2cPollingWait)
+  if (sfe_millis() - lastCheck >= i2cPollingWait)
   {
     // Get the number of bytes available from the module
     // From the u-blox integration manual:
@@ -648,7 +648,7 @@ bool DevUBLOXGNSS::checkUbloxI2C(ubxPacket *incomingUBX, uint8_t requestedClass,
 
     if (bytesAvailable == 0)
     {
-      lastCheck = millis(); // Put off checking to avoid I2C bus traffic
+      lastCheck = sfe_millis(); // Put off checking to avoid I2C bus traffic
       return (false);
     }
 
@@ -738,34 +738,66 @@ bool DevUBLOXGNSS::processSpiBuffer(ubxPacket *incomingUBX, uint8_t requestedCla
 }
 
 // Checks SPI for data, passing any new bytes to process()
+//
+// SPI has no available(). When the module has no data for us, it clocks out 0xFF.
+// We read the module in blocks of up to spiTransactionSize bytes (writeReadBytes) - not one byte at a time -
+// as the per-transaction overhead can be significant (e.g. ESP-IDF spi_device_polling_transmit). This matters
+// at high data rates, e.g. RAWX at 20Hz. Reading past the end of the module's data is harmless: the extra bytes
+// are 0xFF "no data" filler, which process() ignores when currentSentence is NONE. A 0xFF within a message
+// (e.g. in RAWX data) is still processed correctly because currentSentence is not NONE.
+// We stop when a block ends with 0xFF and no sentence is in progress (the module has no more data), or after
+// kMaxSpiBytesPerCheck bytes so that checkUblox() always returns - letting the caller write to SD, process
+// callbacks and let other RTOS tasks run - even if the module's data never pauses. process() keeps its state
+// between calls, so stopping part-way through a message is safe.
 bool DevUBLOXGNSS::checkUbloxSpi(ubxPacket *incomingUBX, uint8_t requestedClass, uint8_t requestedID)
 {
   bool retVal = processSpiBuffer(incomingUBX, requestedClass, requestedID);
 
-  // SPI has no available(). We need to keep reading bytes one at a time and stop when we hit 0xFF
-  startWriteReadByte();
+  const size_t kMaxSpiBlockSize = 128;       // Maximum bytes per SPI transaction (limits the stack used here)
+  const size_t kMaxSpiBytesPerCheck = 16384; // Maximum bytes to read per call of checkUbloxSpi
 
-  uint8_t byteReturned = 0xFF;
-  writeReadByte(0xFF, &byteReturned);
+  size_t blockSize = spiTransactionSize;
+  if (blockSize > kMaxSpiBlockSize)
+    blockSize = kMaxSpiBlockSize;
+  if (blockSize == 0)
+    blockSize = 1;
 
-  // Note to future self: I think the 0xFF check might cause problems when attempting to process (e.g.) RAWX data
-  // which could legitimately contain 0xFF within the data stream. But the currentSentence check will certainly help!
+  uint8_t txBytes[kMaxSpiBlockSize];
+  uint8_t rxBytes[kMaxSpiBlockSize];
+  memset(txBytes, 0xFF, blockSize); // Write 0xFF while reading - the module ignores 0xFF
 
-  // If we are not receiving a sentence (currentSentence == NONE) and the byteReturned is 0xFF,
-  // i.e. the module has no data for us, then delay and return
-  if ((byteReturned == 0xFF) && (currentSentence == SFE_UBLOX_SENTENCE_TYPE_NONE))
+  size_t bytesRead = 0;
+  bool dataReceived = false;
+
+  while (bytesRead < kMaxSpiBytesPerCheck)
   {
-    endWriteReadByte();
-    delay(spiPollingWait);
+    if (writeReadBytes(txBytes, rxBytes, (uint8_t)blockSize) != blockSize)
+      break; // Bus error
+
+    bytesRead += blockSize;
+
+    for (size_t i = 0; i < blockSize; i++)
+    {
+      // Skip 0xFF filler between messages. Everything else - including 0xFF within a message - is processed
+      if ((rxBytes[i] != 0xFF) || (currentSentence != SFE_UBLOX_SENTENCE_TYPE_NONE))
+      {
+        process(rxBytes[i], incomingUBX, requestedClass, requestedID);
+        dataReceived = true;
+      }
+    }
+
+    // If the block ended with 0xFF and we are not part-way through a sentence, the module has no more data for us
+    if ((rxBytes[blockSize - 1] == 0xFF) && (currentSentence == SFE_UBLOX_SENTENCE_TYPE_NONE))
+      break;
+  }
+
+  if (!dataReceived)
+  {
+    // The module has no data for us. Delay and return
+    sfe_delay(spiPollingWait);
     return (retVal);
   }
 
-  while ((byteReturned != 0xFF) || (currentSentence != SFE_UBLOX_SENTENCE_TYPE_NONE))
-  {
-    process(byteReturned, incomingUBX, requestedClass, requestedID);
-    writeReadByte(0xFF, &byteReturned);
-  }
-  endWriteReadByte();
   return (true);
 
 } // end checkUbloxSpi()
@@ -1616,7 +1648,7 @@ void DevUBLOXGNSS::processNMEA(char incoming)
 // Check if the NMEA message (in nmeaAddressField) is "auto" (i.e. its isAutomatic flag is set)
 bool DevUBLOXGNSS::isThisNMEAauto(const char *msgId)
 {
-  bool automatic;
+  bool automatic = false;
   if (nmeaMessages.isAutomatic(msgId, &automatic) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
   return automatic;
@@ -1856,9 +1888,9 @@ void DevUBLOXGNSS::processUBX(uint8_t incoming, ubxPacket *incomingUBX, uint8_t 
       // Drive an external pin to allow for easier logic analyzation
       if (debugPin >= 0)
       {
-        digitalWrite((uint8_t)debugPin, LOW);
-        delay(10);
-        digitalWrite((uint8_t)debugPin, HIGH);
+        sfe_pin_write((uint8_t)debugPin, false);
+        sfe_delay(10);
+        sfe_pin_write((uint8_t)debugPin, true);
       }
 
       debugPrint("Checksum failed:", true); // Important
@@ -2308,7 +2340,7 @@ sfe_ublox_status_e DevUBLOXGNSS::pollNMEA(const char *msgId, uint16_t maxWait)
   if (!lock())
     return SFE_UBLOX_STATUS_FAIL;
 
-  unsigned long startTime = millis();
+  unsigned long startTime = sfe_millis();
 
   sfe_ublox_status_e retVal = SFE_UBLOX_STATUS_SUCCESS;
 
@@ -2351,7 +2383,7 @@ sfe_ublox_status_e DevUBLOXGNSS::pollNMEA(const char *msgId, uint16_t maxWait)
   {
     // Poll request sent. Wait for the NMEA to arrive
     bool queried = false;
-    while ((!queried) &&((millis() - startTime) < maxWait))
+    while ((!queried) &&((sfe_millis() - startTime) < maxWait))
     {
       checkUbloxInternal(&packetCfg, 0, 0); // Hijack packetCfg
       retVal = nmeaMessages.moduleQueried(msgId, &queried);
@@ -2713,8 +2745,8 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForACKResponse(ubxPacket *outgoingUBX, uint
   packetBuf.classAndIDmatch = SFE_UBLOX_PACKET_VALIDITY_NOT_DEFINED;
   packetAuto.classAndIDmatch = SFE_UBLOX_PACKET_VALIDITY_NOT_DEFINED;
 
-  unsigned long startTime = millis();
-  while ((millis() - startTime) < (unsigned long)maxTime)
+  unsigned long startTime = sfe_millis();
+  while ((sfe_millis() - startTime) < (unsigned long)maxTime)
   {
     if (checkUbloxInternal(outgoingUBX, requestedClass, requestedID) == true) // See if new data is available. Process bytes as they come in.
     {
@@ -2724,7 +2756,7 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForACKResponse(ubxPacket *outgoingUBX, uint
       if ((outgoingUBX->classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_VALID) && (packetAck.classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_VALID) && (outgoingUBX->valid == SFE_UBLOX_PACKET_VALIDITY_VALID) && (outgoingUBX->cls == requestedClass) && (outgoingUBX->id == requestedID))
       {
         debugPrint("waitForACKResponse: valid data and valid ACK received after ");
-        debugPrint(millis() - startTime);
+        debugPrint(sfe_millis() - startTime);
         debugPrintln(" msec");
         return (SFE_UBLOX_STATUS_DATA_RECEIVED); // We received valid data and a correct ACK!
       }
@@ -2737,7 +2769,7 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForACKResponse(ubxPacket *outgoingUBX, uint
       else if ((outgoingUBX->classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_NOT_DEFINED) && (packetAck.classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_VALID))
       {
         debugPrint("waitForACKResponse: no data and valid ACK after ");
-        debugPrint(millis() - startTime);
+        debugPrint(sfe_millis() - startTime);
         debugPrintln(" msec");
         return (SFE_UBLOX_STATUS_DATA_SENT); // We got an ACK but no data...
       }
@@ -2752,7 +2784,7 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForACKResponse(ubxPacket *outgoingUBX, uint
       else if ((outgoingUBX->classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_VALID) && (packetAck.classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_VALID) && ((outgoingUBX->cls != requestedClass) || (outgoingUBX->id != requestedID)))
       {
         debugPrint("waitForACKResponse: data being OVERWRITTEN after ");
-        debugPrint(millis() - startTime);
+        debugPrint(sfe_millis() - startTime);
         debugPrintln(" msec");
         return (SFE_UBLOX_STATUS_DATA_OVERWRITTEN); // Data was valid but has been or is being overwritten
       }
@@ -2762,7 +2794,7 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForACKResponse(ubxPacket *outgoingUBX, uint
       else if ((packetAck.classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_VALID) && (outgoingUBX->classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_NOT_VALID) && (outgoingUBX->valid == SFE_UBLOX_PACKET_VALIDITY_NOT_VALID))
       {
         debugPrint("waitForACKResponse: CRC failed after ");
-        debugPrint(millis() - startTime);
+        debugPrint(sfe_millis() - startTime);
         debugPrintln(" msec");
         return (SFE_UBLOX_STATUS_CRC_FAIL); // Checksum fail
       }
@@ -2777,7 +2809,7 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForACKResponse(ubxPacket *outgoingUBX, uint
       else if (packetAck.classAndIDmatch == SFE_UBLOX_PACKET_NOTACKNOWLEDGED)
       {
         debugPrint("waitForACKResponse: data was NOTACKNOWLEDGED (NACK) after ");
-        debugPrint(millis() - startTime);
+        debugPrint(sfe_millis() - startTime);
         debugPrintln(" msec");
         return (SFE_UBLOX_STATUS_COMMAND_NACK); // We received a NACK!
       }
@@ -2788,7 +2820,7 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForACKResponse(ubxPacket *outgoingUBX, uint
       else if ((outgoingUBX->classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_VALID) && (packetAck.classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_NOT_VALID) && (outgoingUBX->valid == SFE_UBLOX_PACKET_VALIDITY_VALID) && (outgoingUBX->cls == requestedClass) && (outgoingUBX->id == requestedID))
       {
         debugPrint("waitForACKResponse: VALID data and INVALID ACK received after ");
-        debugPrint(millis() - startTime);
+        debugPrint(sfe_millis() - startTime);
         debugPrintln(" msec");
         return (SFE_UBLOX_STATUS_DATA_RECEIVED); // We received valid data and an invalid ACK!
       }
@@ -2798,7 +2830,7 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForACKResponse(ubxPacket *outgoingUBX, uint
       else if ((outgoingUBX->classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_NOT_VALID) && (packetAck.classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_NOT_VALID))
       {
         debugPrint("waitForACKResponse: INVALID data and INVALID ACK received after ");
-        debugPrint(millis() - startTime);
+        debugPrint(sfe_millis() - startTime);
         debugPrintln(" msec");
         return (SFE_UBLOX_STATUS_FAIL); // We received invalid data and an invalid ACK!
       }
@@ -2814,7 +2846,7 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForACKResponse(ubxPacket *outgoingUBX, uint
 
     } // checkUbloxInternal == true
 
-    delay(1); // Allow an RTOS to get an elbow in (#11)
+    sfe_delay(1); // Allow an RTOS to get an elbow in (#11)
   }           // while ((millis() - startTime) < (unsigned long)maxTime)
 
   // We have timed out...
@@ -2823,13 +2855,13 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForACKResponse(ubxPacket *outgoingUBX, uint
   if ((outgoingUBX->classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_VALID) && (packetAck.classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_NOT_DEFINED) && (outgoingUBX->valid == SFE_UBLOX_PACKET_VALIDITY_VALID) && (outgoingUBX->cls == requestedClass) && (outgoingUBX->id == requestedID))
   {
     debugPrint("waitForACKResponse: TIMEOUT with valid data after ");
-    debugPrint(millis() - startTime);
+    debugPrint(sfe_millis() - startTime);
     debugPrintln(" msec. ");
     return (SFE_UBLOX_STATUS_DATA_RECEIVED); // We received valid data... But no ACK!
   }
 
   debugPrint("waitForACKResponse: TIMEOUT after ");
-  debugPrint(millis() - startTime);
+  debugPrint(sfe_millis() - startTime);
   debugPrintln(" msec.");
 
   return (SFE_UBLOX_STATUS_TIMEOUT);
@@ -2852,8 +2884,8 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForNoACKResponse(ubxPacket *outgoingUBX, ui
   packetBuf.classAndIDmatch = SFE_UBLOX_PACKET_VALIDITY_NOT_DEFINED;
   packetAuto.classAndIDmatch = SFE_UBLOX_PACKET_VALIDITY_NOT_DEFINED;
 
-  unsigned long startTime = millis();
-  while (millis() - startTime < maxTime)
+  unsigned long startTime = sfe_millis();
+  while (sfe_millis() - startTime < maxTime)
   {
     if (checkUbloxInternal(outgoingUBX, requestedClass, requestedID) == true) // See if new data is available. Process bytes as they come in.
     {
@@ -2864,7 +2896,7 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForNoACKResponse(ubxPacket *outgoingUBX, ui
       if ((outgoingUBX->classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_VALID) && (outgoingUBX->valid == SFE_UBLOX_PACKET_VALIDITY_VALID) && (outgoingUBX->cls == requestedClass) && (outgoingUBX->id == requestedID))
       {
         debugPrint("waitForNoACKResponse: valid data with CLS/ID match after ");
-        debugPrint(millis() - startTime);
+        debugPrint(sfe_millis() - startTime);
         debugPrintln(" msec");
         return (SFE_UBLOX_STATUS_DATA_RECEIVED); // We received valid data!
       }
@@ -2879,7 +2911,7 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForNoACKResponse(ubxPacket *outgoingUBX, ui
       else if ((outgoingUBX->classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_VALID) && ((outgoingUBX->cls != requestedClass) || (outgoingUBX->id != requestedID)))
       {
         debugPrint("waitForNoACKResponse: data being OVERWRITTEN after ");
-        debugPrint(millis() - startTime);
+        debugPrint(sfe_millis() - startTime);
         debugPrintln(" msec");
         return (SFE_UBLOX_STATUS_DATA_OVERWRITTEN); // Data was valid but has been or is being overwritten
       }
@@ -2900,17 +2932,17 @@ sfe_ublox_status_e DevUBLOXGNSS::waitForNoACKResponse(ubxPacket *outgoingUBX, ui
       else if (outgoingUBX->classAndIDmatch == SFE_UBLOX_PACKET_VALIDITY_NOT_VALID)
       {
         debugPrint("waitForNoACKResponse: CLS/ID match but failed CRC after ");
-        debugPrint(millis() - startTime);
+        debugPrint(sfe_millis() - startTime);
         debugPrintln(" msec");
         return (SFE_UBLOX_STATUS_CRC_FAIL); // We received invalid data
       }
     }
 
-    delay(1); // Allow an RTOS to get an elbow in (#11)
+    sfe_delay(1); // Allow an RTOS to get an elbow in (#11)
   }
 
   debugPrint("waitForNoACKResponse: TIMEOUT after ");
-  debugPrint(millis() - startTime);
+  debugPrint(sfe_millis() - startTime);
   debugPrintln(" msec. No packet received.");
 
   return (SFE_UBLOX_STATUS_TIMEOUT);
@@ -3117,9 +3149,9 @@ nmeaMessage *DevUBLOXGNSS::getNmeaMessagePtr(nmeaCallbackDataCommon_t *theData)
 // immediately before calling the callback, so this reads that slot rather than always offset 0.
 // For _numCallbackCopies <= 1 (every other message), _callbackReadIndex is always 0, so this is
 // unchanged from before.
-String DevUBLOXGNSS::getNmeaMessageFieldCallback(nmeaMessage *theMessage, const char *fieldName)
+sfe_string_t DevUBLOXGNSS::getNmeaMessageFieldCallback(nmeaMessage *theMessage, const char *fieldName)
 {
-    String value = String("");
+    sfe_string_t value = "";
     if ((theMessage != nullptr) && (theMessage->_callbackStorage != nullptr))
     {
         const uint8_t *slot = theMessage->_callbackStorage + ((uint32_t)theMessage->_callbackReadIndex * theMessage->_messageLength);
@@ -3130,9 +3162,9 @@ String DevUBLOXGNSS::getNmeaMessageFieldCallback(nmeaMessage *theMessage, const 
 
 // v4 scaffolding: 
 // Factory: extracts a named field from the message, reading from its live _storage
-String DevUBLOXGNSS::getNmeaMessageField(nmeaMessage *theMessage, const char *fieldName)
+sfe_string_t DevUBLOXGNSS::getNmeaMessageField(nmeaMessage *theMessage, const char *fieldName)
 {
-    String value = String("");
+    sfe_string_t value = "";
     if (theMessage != nullptr)
         theMessage->extractFieldFrom(theMessage->_storage, fieldName, value);
     return value;
@@ -3147,9 +3179,9 @@ String DevUBLOXGNSS::getNmeaMessageField(nmeaMessage *theMessage, const char *fi
 // message's maxNumBlocks and returns an empty String if it's out of range, per AGENTS.md: NMEA
 // fields are ASCII of unknown extent, not a fixed-size binary block, so an out-of-range block
 // can't just be treated as unused-but-allocated memory the way the UBX side does.
-String DevUBLOXGNSS::getNmeaMessageBlockFieldCallback(nmeaMessage *theMessage, uint16_t blockIndex, const char *fieldName)
+sfe_string_t DevUBLOXGNSS::getNmeaMessageBlockFieldCallback(nmeaMessage *theMessage, uint16_t blockIndex, const char *fieldName)
 {
-    String value = String("");
+    sfe_string_t value = "";
     if ((theMessage != nullptr) && (theMessage->_blockFields != nullptr) && (theMessage->_callbackStorage != nullptr))
     {
         // See getNmeaMessageFieldCallback() above - _callbackReadIndex selects which buffered
@@ -3162,9 +3194,9 @@ String DevUBLOXGNSS::getNmeaMessageBlockFieldCallback(nmeaMessage *theMessage, u
 
 // v4 scaffolding: variable-length/repeated-block support - see getNmeaMessageBlockFieldCallback()
 // above. Reads from the message's live _storage rather than its frozen _callbackStorage.
-String DevUBLOXGNSS::getNmeaMessageBlockField(nmeaMessage *theMessage, uint16_t blockIndex, const char *fieldName)
+sfe_string_t DevUBLOXGNSS::getNmeaMessageBlockField(nmeaMessage *theMessage, uint16_t blockIndex, const char *fieldName)
 {
-    String value = String("");
+    sfe_string_t value = "";
     if ((theMessage != nullptr) && (theMessage->_blockFields != nullptr) && (theMessage->_storage != nullptr))
         theMessage->extractFieldFrom(theMessage->_storage, fieldName, value, theMessage->_blockFields, theMessage->_numBlockFields, blockIndex);
     return value;
@@ -3477,7 +3509,7 @@ bool DevUBLOXGNSS::pushRawData(uint8_t *dataBytes, size_t numDataBytes, bool cal
 // Return how many bytes were pushed successfully.
 // If skipTime is true, any UBX-MGA-INI-TIME_UTC or UBX-MGA-INI-TIME_GNSS packets found in the data will be skipped,
 // allowing the user to override with their own time data with setUTCTimeAssistance.
-size_t DevUBLOXGNSS::pushAssistNowData(const String &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck, uint16_t maxWait)
+size_t DevUBLOXGNSS::pushAssistNowData(const sfe_string_t &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck, uint16_t maxWait)
 {
   return (pushAssistNowDataInternal(0, false, (const uint8_t *)dataBytes.c_str(), numDataBytes, mgaAck, maxWait));
 }
@@ -3485,7 +3517,7 @@ size_t DevUBLOXGNSS::pushAssistNowData(const uint8_t *dataBytes, size_t numDataB
 {
   return (pushAssistNowDataInternal(0, false, dataBytes, numDataBytes, mgaAck, maxWait));
 }
-size_t DevUBLOXGNSS::pushAssistNowData(bool skipTime, const String &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck, uint16_t maxWait)
+size_t DevUBLOXGNSS::pushAssistNowData(bool skipTime, const sfe_string_t &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck, uint16_t maxWait)
 {
   return (pushAssistNowDataInternal(0, skipTime, (const uint8_t *)dataBytes.c_str(), numDataBytes, mgaAck, maxWait));
 }
@@ -3493,7 +3525,7 @@ size_t DevUBLOXGNSS::pushAssistNowData(bool skipTime, const uint8_t *dataBytes, 
 {
   return (pushAssistNowDataInternal(0, skipTime, dataBytes, numDataBytes, mgaAck, maxWait));
 }
-size_t DevUBLOXGNSS::pushAssistNowData(size_t offset, bool skipTime, const String &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck, uint16_t maxWait)
+size_t DevUBLOXGNSS::pushAssistNowData(size_t offset, bool skipTime, const sfe_string_t &dataBytes, size_t numDataBytes, sfe_ublox_mga_assist_ack_e mgaAck, uint16_t maxWait)
 {
   return (pushAssistNowDataInternal(offset, skipTime, (const uint8_t *)dataBytes.c_str(), numDataBytes, mgaAck, maxWait));
 }
@@ -3583,9 +3615,9 @@ size_t DevUBLOXGNSS::pushAssistNowDataInternal(size_t offset, bool skipTime, con
 
         if (checkForAcks)
         {
-          unsigned long startTime = millis();
+          unsigned long startTime = sfe_millis();
           bool keepGoing = true;
-          while (keepGoing && ((millis() - startTime) < maxWait)) // Keep checking for the ACK until we time out
+          while (keepGoing && ((sfe_millis() - startTime) < maxWait)) // Keep checking for the ACK until we time out
           {
             checkUbloxInternal(&packetCfg, 0, 0);               // Call checkUbloxInternal to parse any incoming data. Don't overwrite the requested Class and ID. We could be pushing this from another thread...
             if (packetUBXMGAACK->head != packetUBXMGAACK->tail) // Does the MGA ACK ringbuffer contain any ACK's?
@@ -3602,7 +3634,7 @@ size_t DevUBLOXGNSS::pushAssistNowDataInternal(size_t offset, bool skipTime, con
                 if ((packetUBXMGAACK->data[packetUBXMGAACK->tail].type == (uint8_t)1) && (packetUBXMGAACK->data[packetUBXMGAACK->tail].infoCode == (uint8_t)SFE_UBLOX_MGA_ACK_INFOCODE_ACCEPTED))
                 {
                   debugPrint("pushAssistNowData: packet was accepted after ", true); // Important
-                  debugPrint(millis() - startTime, true);
+                  debugPrint(sfe_millis() - startTime, true);
                   debugPrintln(" ms", true);
                   packetsProcessed++;
                 }
@@ -3631,7 +3663,7 @@ size_t DevUBLOXGNSS::pushAssistNowDataInternal(size_t offset, bool skipTime, con
           // We are not checking for Acks, so delay for maxWait millis unless we've reached the end of the data
           if ((dataPtr + packetLength + ((size_t)8)) < (offset + numDataBytes))
           {
-            delay(maxWait);
+            sfe_delay(maxWait);
           }
         }
       }
@@ -3833,7 +3865,7 @@ bool DevUBLOXGNSS::setPositionAssistanceLLH(int32_t lat, int32_t lon, int32_t al
 // The daysIntoFture parameter makes it easy to get the data for (e.g.) tomorrow based on today's date
 // Returns numDataBytes if unsuccessful
 // TO DO: enhance this so it will find the nearest data for the chosen day - instead of an exact match
-size_t DevUBLOXGNSS::findMGAANOForDate(const String &dataBytes, size_t numDataBytes, uint16_t year, uint8_t month, uint8_t day, uint8_t daysIntoFuture)
+size_t DevUBLOXGNSS::findMGAANOForDate(const sfe_string_t &dataBytes, size_t numDataBytes, uint16_t year, uint8_t month, uint8_t day, uint8_t daysIntoFuture)
 {
   return (findMGAANOForDateInternal((const uint8_t *)dataBytes.c_str(), numDataBytes, year, month, day, daysIntoFuture));
 }
@@ -4041,11 +4073,11 @@ size_t DevUBLOXGNSS::readNavigationDatabase(uint8_t *dataBytes, size_t maxNumDat
 
   // Now keep checking for the arrival of UBX-MGA-DBD packets and write them to dataBytes
   bool keepGoing = true;
-  unsigned long startTime = millis();
+  unsigned long startTime = sfe_millis();
   uint32_t databaseEntriesRX = 0; // Keep track of how many database entries are received
   size_t numBytesReceived = 0;    // Keep track of how many bytes are received
 
-  while (keepGoing && ((millis() - startTime) < maxWait))
+  while (keepGoing && ((sfe_millis() - startTime) < maxWait))
   {
     checkUbloxInternal(&packetCfg, 0, 0); // Call checkUbloxInternal to parse any incoming data. Don't overwrite the requested Class and ID. We could be pushing this from another thread...
 
@@ -4103,7 +4135,7 @@ size_t DevUBLOXGNSS::readNavigationDatabase(uint8_t *dataBytes, size_t maxNumDat
         debugPrint(". numBytesReceived is ", true);
         debugPrint(numBytesReceived, true);
         debugPrint(". DBD read complete after ", true);
-        debugPrint(millis() - startTime, true);
+        debugPrint(sfe_millis() - startTime, true);
         debugPrintln(" ms", true);
         keepGoing = false;
       }
@@ -4886,24 +4918,24 @@ bool DevUBLOXGNSS::setSPIInput(uint8_t comSettings, uint8_t layer, uint16_t maxW
 }
 
 // Want to see the NMEA messages on the Serial port? Here's how
-void DevUBLOXGNSS::setNMEAOutputPort(Print &outputPort)
+void DevUBLOXGNSS::setNMEAOutputPort(sfe_print_t &outputPort)
 {
   _nmeaOutputPort.init(outputPort); // Store the port from user
 }
 
 // Want to see the RTCM messages on the Serial port? Here's how
-void DevUBLOXGNSS::setRTCMOutputPort(Print &outputPort)
+void DevUBLOXGNSS::setRTCMOutputPort(sfe_print_t &outputPort)
 {
   _rtcmOutputPort.init(outputPort); // Store the port from user
 }
 
 // Want to see the UBX messages on the Serial port? Here's how
-void DevUBLOXGNSS::setUBXOutputPort(Print &outputPort)
+void DevUBLOXGNSS::setUBXOutputPort(sfe_print_t &outputPort)
 {
   _ubxOutputPort.init(outputPort); // Store the port from user
 }
 
-void DevUBLOXGNSS::setOutputPort(Print &outputPort)
+void DevUBLOXGNSS::setOutputPort(sfe_print_t &outputPort)
 {
   _outputPort.init(outputPort); // Store the port from user
 }
@@ -5180,7 +5212,7 @@ bool DevUBLOXGNSS::getModuleInfo(uint16_t maxWait)
   // Payload should now contain ~220 characters (depends on module type)
 
   // We will step through the payload looking at each extension field of 30 bytes
-  char *ptr;
+  const char *ptr; // const: glibc's C++ strstr returns const char * for a const argument
   uint8_t fwProtMod = 0; // Flags to show if we extracted the FWVER, PROTVER and MOD data
   for (uint16_t extensionNumber = 0; extensionNumber < ((packetCfg.len - 40) / 30); extensionNumber++)
   {
@@ -5659,7 +5691,7 @@ bool DevUBLOXGNSS::isGNSSenabled(sfe_ublox_gnss_ids_e id, bool *enabled, uint8_t
 bool DevUBLOXGNSS::isGNSSenabled(sfe_ublox_gnss_ids_e id, uint8_t layer, uint16_t maxWait) // Unsafe
 {
   uint32_t key = getEnableGNSSConfigKey(id);
-  uint8_t enabled;
+  uint8_t enabled = 0; // Initialized: isGNSSenabled returns false if getVal8 fails
   getVal8(key, &enabled, layer, maxWait);
   return ((bool)enabled);
 }
@@ -5699,7 +5731,7 @@ bool DevUBLOXGNSS::setESFAutoAlignment(bool enable, uint8_t layer, uint16_t maxW
 // UBX-CFG-NAVX5 - get/set the ackAiding byte. If ackAiding is 1, UBX-MGA-ACK messages will be sent by the module to acknowledge the MGA data
 uint8_t DevUBLOXGNSS::getAckAiding(uint8_t layer, uint16_t maxWait) // Get the ackAiding byte - returns 255 if the sendCommand fails
 {
-  uint8_t enabled;
+  uint8_t enabled = 0;
   bool success = getVal8(UBLOX_CFG_NAVSPG_ACKAIDING, &enabled, layer, maxWait);
   if (success)
     return enabled;
@@ -5714,7 +5746,7 @@ bool DevUBLOXGNSS::setAckAiding(uint8_t ackAiding, uint8_t layer, uint16_t maxWa
 // UBX-CFG-NAVX5 - get the AssistNow Autonomous configuration (aopCfg) - returns 255 if the sendCommand fails
 uint8_t DevUBLOXGNSS::getAopCfg(uint8_t layer, uint16_t maxWait)
 {
-  uint8_t enabled;
+  uint8_t enabled = 0;
   bool success = getVal8(UBLOX_CFG_ANA_USE_ANA, &enabled, layer, maxWait);
   if (success)
     return enabled;
@@ -6341,11 +6373,11 @@ bool DevUBLOXGNSS::getSECUNIQID(uint16_t maxWait)
 // not poll itself. uniqueId is modelled as 6 repeated 1-byte "blocks" (see ubxSECUNIQID.h), read
 // with getUbxMessageBlockField() - the same generic mechanism as every other variable-length
 // message's blocks.
-String DevUBLOXGNSS::getUniqueChipIdStr(void)
+sfe_string_t DevUBLOXGNSS::getUniqueChipIdStr(void)
 {
   ubxMessage *msg = ubxMessages.find(UBX_CLASS_SEC, UBX_SEC_UNIQID);
 
-  String uniqueId;
+  sfe_string_t uniqueId;
   char hexByte[3];
   for (uint8_t i = 0; i < getUbxMessageBlockCount(msg); i++)
   {
@@ -6962,11 +6994,11 @@ bool DevUBLOXGNSS::getUBX(uint8_t Class, uint8_t ID, uint16_t maxWait)
   if (ubxMessages.initStorage(Class, ID) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
 
-  bool automatic;
+  bool automatic = false;
   if (ubxMessages.isAutomatic(Class, ID, &automatic) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
 
-  bool implicitUpdate;
+  bool implicitUpdate = false;
   if (ubxMessages.implicitUpdate(Class, ID, &implicitUpdate) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
 
@@ -6974,7 +7006,7 @@ bool DevUBLOXGNSS::getUBX(uint8_t Class, uint8_t ID, uint16_t maxWait)
   {
     // The module is automatically reporting this message; just check whether we got unread data
     checkUbloxInternal(&packetCfg, 0, 0); // Parse any incoming data. Don't overwrite the requested Class and ID
-    bool queried;
+    bool queried = false;
     if (ubxMessages.moduleQueried(Class, ID, &queried) != SFE_UBLOX_STATUS_SUCCESS)
       return false;
     if (queried) // Fresh data arrived - report it, then mark it read ("one-shot")
@@ -7094,11 +7126,11 @@ bool DevUBLOXGNSS::assumeAutoUBX(uint8_t Class, uint8_t ID, bool enabled, bool i
   if (ubxMessages.initStorage(Class, ID) != SFE_UBLOX_STATUS_SUCCESS) // Only attempt this if RAM allocation was successful
     return false;
 
-  bool automatic;
+  bool automatic = false;
   if (ubxMessages.isAutomatic(Class, ID, &automatic) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
 
-  bool implicit;
+  bool implicit = false;
   if (ubxMessages.implicitUpdate(Class, ID, &implicit) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
 
@@ -7139,11 +7171,11 @@ bool DevUBLOXGNSS::getNMEA(const char *msgId, uint16_t maxWait)
   if (nmeaMessages.initStorage(msgId) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
 
-  bool automatic; // We could / should probably use isThisNMEAauto() here...?
+  bool automatic = false; // We could / should probably use isThisNMEAauto() here...?
   if (nmeaMessages.isAutomatic(msgId, &automatic) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
 
-  bool implicitUpdate;
+  bool implicitUpdate = false;
   if (nmeaMessages.implicitUpdate(msgId, &implicitUpdate) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
 
@@ -7151,7 +7183,7 @@ bool DevUBLOXGNSS::getNMEA(const char *msgId, uint16_t maxWait)
   {
     // The module is automatically reporting this message; just check whether we got unread data
     checkUbloxInternal(&packetCfg, 0, 0); // Parse any incoming data. Don't overwrite the requested Class and ID
-    bool queried;
+    bool queried = false;
     if (nmeaMessages.moduleQueried(msgId, &queried) != SFE_UBLOX_STATUS_SUCCESS)
       return false;
     if (queried) // Fresh data arrived - report it, then mark it read ("one-shot")
@@ -7181,7 +7213,7 @@ bool DevUBLOXGNSS::getNMEA(const char *msgId, uint16_t maxWait)
   return false;
 }
 
-bool DevUBLOXGNSS::getNMEAfield(const char *msgId, const char *field, String &value)
+bool DevUBLOXGNSS::getNMEAfield(const char *msgId, const char *field, sfe_string_t &value)
 {
   if (nmeaMessages.initStorage(msgId) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
@@ -7243,11 +7275,11 @@ bool DevUBLOXGNSS::assumeAutoNMEA(const char *msgId, bool enabled, bool implicit
   if (nmeaMessages.initStorage(msgId) != SFE_UBLOX_STATUS_SUCCESS) // Only attempt this if RAM allocation was successful
     return false;
 
-  bool automatic;
+  bool automatic = false;
   if (nmeaMessages.isAutomatic(msgId, &automatic) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
 
-  bool implicit;
+  bool implicit = false;
   if (nmeaMessages.implicitUpdate(msgId, &implicit) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
 

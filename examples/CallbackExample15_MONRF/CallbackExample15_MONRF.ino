@@ -133,6 +133,10 @@ void setup()
     delay (1000);
   }
 
+  // setCfgValset() writes to the RAM and Battery-backed-RAM layers by default (VAL_LAYER_RAM_BBR).
+  // To use a different layer, add it as the third parameter. E.g. for RAM only:
+  //   setCfgValset(UBLOX_CFG_MSGOUT_..., n, VAL_LAYER_RAM)
+  // VAL_LAYER_ALL also saves the setting in Flash (if the module has Flash).
   myGNSS.setCfgValset(UBLOX_CFG_HW_ANT_CFG_SHORTDET, 1); // Enable antenna short detection
   myGNSS.setCfgValset(UBLOX_CFG_HW_ANT_CFG_OPENDET, 1);  // Enable antenna open detection
 

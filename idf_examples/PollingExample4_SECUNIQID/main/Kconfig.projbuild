@@ -1,0 +1,17 @@
+menu "Example Configuration"
+
+    config EXAMPLE_I2C_SDA_GPIO
+        int "I2C SDA GPIO"
+        range 0 63
+        default 21
+        help
+            GPIO connected to the GNSS module's SDA pin.
+
+    config EXAMPLE_I2C_SCL_GPIO
+        int "I2C SCL GPIO"
+        range 0 63
+        default 22
+        help
+            GPIO connected to the GNSS module's SCL pin.
+
+endmenu

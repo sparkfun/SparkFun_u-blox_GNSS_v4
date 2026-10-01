@@ -366,7 +366,7 @@ public:
      * registered under msgId or the field was not found, or SFE_UBLOX_STATUS_MEM_ERR if no data
      * has arrived for this message yet (its _storage is still unallocated).
      */
-    sfe_ublox_status_e extractValue(const char *msgId, const char *field, String &value)
+    sfe_ublox_status_e extractValue(const char *msgId, const char *field, sfe_string_t &value)
     {
         nmeaMessage *msg = find(msgId);
         if (msg == nullptr)

@@ -1,0 +1,66 @@
+menu "Example Configuration"
+
+    config EXAMPLE_GNSS_SPI_SCK_GPIO
+        int "GNSS SPI SCK GPIO"
+        range 0 63
+        default 18
+
+    config EXAMPLE_GNSS_SPI_POCI_GPIO
+        int "GNSS SPI POCI (MISO) GPIO"
+        range 0 63
+        default 19
+
+    config EXAMPLE_GNSS_SPI_PICO_GPIO
+        int "GNSS SPI PICO (MOSI) GPIO"
+        range 0 63
+        default 23
+
+    config EXAMPLE_GNSS_CS_GPIO
+        int "GNSS SPI chip select GPIO"
+        range 0 63
+        default 33
+        help
+            Connect the ZED-F9P CS pin to DataLogger IoT pin 33.
+
+    config EXAMPLE_IMU_CS_GPIO
+        int "IMU chip select GPIO (-1 if none)"
+        range -1 63
+        default 5
+        help
+            The DataLogger IoT - 9DoF ISM330 IMU CS. Driven high so the IMU does not interfere with the SPI bus.
+
+    config EXAMPLE_MAG_CS_GPIO
+        int "Magnetometer chip select GPIO (-1 if none)"
+        range -1 63
+        default 27
+        help
+            The DataLogger IoT - 9DoF MMC5983 magnetometer CS. Driven high so the magnetometer does not interfere with the SPI bus.
+
+    config EXAMPLE_EN_3V3_SW_GPIO
+        int "3.3V_SW regulator enable GPIO (-1 if none)"
+        range -1 63
+        default 32
+        help
+            Powers the microSD card and the GNSS on the DataLogger IoT.
+
+    config EXAMPLE_STAT_LED_GPIO
+        int "STAT LED GPIO (-1 to disable)"
+        range -1 63
+        default 25
+        help
+            The STAT LED is flashed each time data is written to the SD card.
+
+    config EXAMPLE_SDMMC_4BIT
+        bool "Use 4-bit SDIO (SDMMC) mode"
+        default y
+        help
+            Use all four SD data lines. Disable to use 1-bit mode.
+
+    config EXAMPLE_SDMMC_HIGHSPEED
+        bool "Use SDMMC high speed (40MHz) mode"
+        default n
+        help
+            The default is 20MHz - the same as the Arduino SD_MMC library. High speed mode doubles the clock
+            but needs a card which supports it and good signal integrity.
+
+endmenu

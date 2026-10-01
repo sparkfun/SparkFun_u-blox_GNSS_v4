@@ -28,11 +28,7 @@
 
 #pragma once
 
-#include <Arduino.h>
-
-#include <Wire.h>
-
-#include <SPI.h>
+#include "sfe_platform.h"
 
 #include "u-blox_GNSS.h"
 #include "u-blox_external_typedefs.h"
@@ -45,6 +41,8 @@ public:
    * @brief Construct an SFE_UBLOX_GNSS object configured for I2C communication.
    */
   SFE_UBLOX_GNSS() { _commType = COMM_TYPE_I2C; }
+
+#if defined(SFE_ARDUINO)
 
   ///////////////////////////////////////////////////////////////////////
   // begin()
@@ -115,6 +113,34 @@ public:
     return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
   }
 
+#elif defined(SFE_ESP_IDF)
+
+  /**
+   * @brief Initialize I2C communication with the GNSS module (ESP-IDF).
+   *
+   * The I2C bus must already have been created with i2c_new_master_bus(). The module is added
+   * to the bus as a device (default clock 400kHz - see menuconfig).
+   *
+   * Returns true if "signs of life" have been seen: reception of _any_ valid UBX packet or _any_ valid NMEA header.
+   *
+   * @param bus The I2C master bus handle.
+   * @param deviceAddress The module's 7-bit I2C address. Defaults to kUBLOXGNSSDefaultAddress (0x42).
+   * @param maxWait Maximum time, in ms, to wait for the module to respond.
+   * @param assumeSuccess If true, return true even if no response was received.
+   * @return true on success, false on startup failure.
+   */
+  bool begin(i2c_master_bus_handle_t bus, uint8_t deviceAddress = kUBLOXGNSSDefaultAddress, uint16_t maxWait = kUBLOXGNSSDefaultMaxWait, bool assumeSuccess = false)
+  {
+    setCommunicationBus(_i2cBus);
+
+    if (!_i2cBus.init(bus, deviceAddress))
+      return false;
+
+    return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
+  }
+
+#endif
+
 private:
   // I2C bus class
   SparkFun_UBLOX_GNSS::SfeI2C _i2cBus;
@@ -127,6 +153,8 @@ public:
    * @brief Construct an SFE_UBLOX_GNSS_SPI object configured for SPI communication.
    */
   SFE_UBLOX_GNSS_SPI() { _commType = COMM_TYPE_SPI; }
+
+#if defined(SFE_ARDUINO)
 
   ///////////////////////////////////////////////////////////////////////
   // begin()
@@ -226,6 +254,54 @@ public:
     return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
   }
 
+#elif defined(SFE_ESP_IDF)
+
+  /**
+   * @brief Initialize SPI communication with the GNSS module (ESP-IDF).
+   *
+   * The SPI bus must already have been initialized with spi_bus_initialize(). The module is added
+   * to the bus as a device (SPI mode 0). Chip select is driven by the library as a GPIO.
+   *
+   * @param host The SPI host the bus was initialized on (e.g. SPI2_HOST).
+   * @param cs The chip select GPIO.
+   * @param spiSpeed The SPI clock speed in Hz. Defaults to 4MHz.
+   * @param maxWait Maximum time, in ms, to wait for the module to respond.
+   * @param assumeSuccess If true, return true even if no response was received.
+   * @return true on success, false on startup failure.
+   */
+  bool begin(spi_host_device_t host, gpio_num_t cs, uint32_t spiSpeed = 4000000, uint16_t maxWait = kUBLOXGNSSDefaultMaxWait, bool assumeSuccess = false)
+  {
+    setCommunicationBus(_spiBus);
+
+    if (!_spiBus.init(host, cs, spiSpeed))
+      return false;
+
+    return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
+  }
+
+  /**
+   * @brief Initialize SPI communication using an SPI device the user has already added to the bus (ESP-IDF).
+   *
+   * The device must have been added with spics_io_num = -1 (chip select is driven by the library) and SPI mode 0.
+   *
+   * @param device The SPI device handle.
+   * @param cs The chip select GPIO.
+   * @param maxWait Maximum time, in ms, to wait for the module to respond.
+   * @param assumeSuccess If true, return true even if no response was received.
+   * @return true on success, false on startup failure.
+   */
+  bool begin(spi_device_handle_t device, gpio_num_t cs, uint16_t maxWait = kUBLOXGNSSDefaultMaxWait, bool assumeSuccess = false)
+  {
+    setCommunicationBus(_spiBus);
+
+    if (!_spiBus.init(device, cs))
+      return false;
+
+    return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
+  }
+
+#endif
+
 private:
   // SPI bus class
   SparkFun_UBLOX_GNSS::SfeSPI _spiBus;
@@ -238,6 +314,8 @@ public:
    * @brief Construct an SFE_UBLOX_GNSS_SERIAL object configured for Serial (UART) communication.
    */
   SFE_UBLOX_GNSS_SERIAL() { _commType = COMM_TYPE_SERIAL; }
+
+#if defined(SFE_ARDUINO)
 
   ///////////////////////////////////////////////////////////////////////
   // begin()
@@ -278,6 +356,33 @@ public:
     return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
   }
 
+#elif defined(SFE_ESP_IDF)
+
+  /**
+   * @brief Initialize Serial (UART) communication with the GNSS module (ESP-IDF).
+   *
+   * The UART must already have been configured with uart_driver_install(), uart_param_config()
+   * and uart_set_pin(). Use an RX buffer of at least 1024 bytes (2048+ recommended).
+   *
+   * Returns true if "signs of life" have been seen: reception of _any_ valid UBX packet or _any_ valid NMEA header.
+   *
+   * @param port The UART port (e.g. UART_NUM_1).
+   * @param maxWait Maximum time, in ms, to wait for the module to respond.
+   * @param assumeSuccess If true, return true even if no response was received.
+   * @return true on success, false on startup failure.
+   */
+  bool begin(uart_port_t port, uint16_t maxWait = kUBLOXGNSSDefaultMaxWait, bool assumeSuccess = false)
+  {
+    setCommunicationBus(_serialBus);
+
+    if (!_serialBus.init(port))
+      return false;
+
+    return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
+  }
+
+#endif
+
 private:
   // I2C bus class
   SparkFun_UBLOX_GNSS::SfeSerial _serialBus;
@@ -290,6 +395,8 @@ public:
    * @brief Construct an SFE_UBLOX_GNSS_SUPER object. Communication bus is chosen by which begin() overload is called.
    */
   SFE_UBLOX_GNSS_SUPER(){};
+
+#if defined(SFE_ARDUINO)
 
   /**
    * @brief Initialize I2C communication with the GNSS module using the default Wire port.
@@ -420,6 +527,46 @@ public:
     // Initialize the system - return results
     return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
   }
+
+#elif defined(SFE_ESP_IDF)
+
+  bool begin(i2c_master_bus_handle_t bus, uint8_t deviceAddress = kUBLOXGNSSDefaultAddress, uint16_t maxWait = kUBLOXGNSSDefaultMaxWait, bool assumeSuccess = false)
+  {
+    _commType = COMM_TYPE_I2C;
+    setCommunicationBus(_i2cBus);
+    if (!_i2cBus.init(bus, deviceAddress))
+      return false;
+    return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
+  }
+
+  bool begin(spi_host_device_t host, gpio_num_t cs, uint32_t spiSpeed = 4000000, uint16_t maxWait = kUBLOXGNSSDefaultMaxWait, bool assumeSuccess = false)
+  {
+    _commType = COMM_TYPE_SPI;
+    setCommunicationBus(_spiBus);
+    if (!_spiBus.init(host, cs, spiSpeed))
+      return false;
+    return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
+  }
+
+  bool begin(spi_device_handle_t device, gpio_num_t cs, uint16_t maxWait = kUBLOXGNSSDefaultMaxWait, bool assumeSuccess = false)
+  {
+    _commType = COMM_TYPE_SPI;
+    setCommunicationBus(_spiBus);
+    if (!_spiBus.init(device, cs))
+      return false;
+    return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
+  }
+
+  bool begin(uart_port_t port, uint16_t maxWait = kUBLOXGNSSDefaultMaxWait, bool assumeSuccess = false)
+  {
+    _commType = COMM_TYPE_SERIAL;
+    setCommunicationBus(_serialBus);
+    if (!_serialBus.init(port))
+      return false;
+    return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
+  }
+
+#endif
 
 private:
   SparkFun_UBLOX_GNSS::SfeI2C _i2cBus;

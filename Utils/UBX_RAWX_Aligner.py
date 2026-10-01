@@ -75,7 +75,7 @@ else:
     repairFilename = filename + '.aligned'
 
 decimalPlaces = 0 # Default to whole seconds
-if len(sys.argv) > 2: decimalPlaces = sys.argv[2]
+if len(sys.argv) > 2: decimalPlaces = int(sys.argv[2]) # round() needs an int, not a string
 
 print()
 print('Processing',filename)
