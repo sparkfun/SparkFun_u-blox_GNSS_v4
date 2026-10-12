@@ -13,16 +13,16 @@ jobs:
     permissions:
       id-token: write
     steps:
-      -name: Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      -name: Get version
+      - name: Get version
         run: |
           echo "currentVersion=$(grep -Po "(?<=version=)([0-9]).([0-9]).([0-9])" ./library.properties)" >> "$GITHUB_ENV"
 
-      -name: Upload components
+      - name: Upload components
         uses: espressif/upload-components-ci-action@v2
-          with:
-            components: "sparkfun_u-blox_gnss_v4: ."
-            version: ${{ env.currentVersion }}
-            namespace: "sparkfun"
+        with:
+          components: "sparkfun_u-blox_gnss_v4: ."
+          version: ${{ env.currentVersion }}
+          namespace: "sparkfun"
