@@ -1,4 +1,14 @@
+# Based on: https://docs.espressif.com/projects/idf-component-manager/en/latest/publish/how_to_github_actions_upload.html
+# Using "Option 1: OIDC authentication (recommended)"
+# When you add the "trusted uploader", the Repository is the GitHub repo.
+# The capitalization needs to follow the true repo name, not the all-lower-case format of the
+# IDF namespace and components:
+# REPOSITORY: sparkfun/SparkFun_u-blox_GNSS_v4
+# WORKFLOW:   idf_component_upload.yml
+# BRANCH:     main
+
 name: Upload to IDF Component Registry
+
 on:
   workflow_dispatch:
     branches:
