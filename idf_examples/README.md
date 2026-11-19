@@ -13,6 +13,16 @@ idf.py -p PORT flash monitor
 
 Each example's `main/idf_component.yml` pulls in the library with `override_path: "../../../"`, so it builds against the library in this repository. (`override_path` is removed automatically when an example is downloaded from the ESP-IDF Component Registry.) Each example's `sdkconfig.defaults` sets `CONFIG_FREERTOS_HZ=1000`. This is recommended: it makes the library's short (1ms) delays true sleeps.
 
+**Important:** ESP-IDF uses the directory name as the component name. The component is called `sparkfun_u-blox_gnss_v4`, so the folder containing this repository must be called `sparkfun_u-blox_gnss_v4` (all lower case) when you build these examples. Otherwise the build fails with: `Failed to resolve component 'sparkfun__sparkfun_u-blox_gnss_v4' required by component 'main': unknown name`. If you cloned the repo or installed it with the Arduino Library Manager, the folder is called `SparkFun_u-blox_GNSS_v4`: clone it again into a folder with the lower-case name, or rename it. On Windows, renaming only the case takes two steps:
+
+```
+cd C:\Users\<you>\Documents\Arduino\libraries
+Rename-Item SparkFun_u-blox_GNSS_v4 sparkfun_u-blox_gnss_v4_tmp
+Rename-Item sparkfun_u-blox_gnss_v4_tmp sparkfun_u-blox_gnss_v4
+```
+
+The Arduino IDE does not mind the lower-case name. This only affects building the examples from this repository: when you add the component from the Component Registry (`idf.py add-dependency`), the Component Manager names the folder for you.
+
 The examples show the three ways the library can read messages from a u-blox GNSS module:
 
 * **Polling**: the code asks the module for a message, and waits for the reply. For example `getNAVPVT()`, `getUBX("NAV", "PVT")` or `getNMEA("ZDA")`.
