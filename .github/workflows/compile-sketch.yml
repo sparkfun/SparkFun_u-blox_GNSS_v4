@@ -7,7 +7,9 @@ on:
 
 jobs:
   compile-sketch:
-    runs-on: ubuntu-latest
+    # arduino/compile-sketches@v1.1.0 installs Python 3.11.2, which actions/setup-python does not provide
+    # for Ubuntu 26.04 (now ubuntu-latest). Pin the runner to Ubuntu 24.04
+    runs-on: ubuntu-24.04
 
     strategy:
       fail-fast: false
