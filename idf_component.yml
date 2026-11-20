@@ -39,6 +39,8 @@ examples:
   - path: idf_examples/PeriodicExample1_NAVHPPOSLLH
   - path: idf_examples/PeriodicExample2_GPGGA
   - path: idf_examples/PeriodicExample3_NAVPVT_on_UART2
+  - path: idf_examples/AssistNowExample1_readNavigationDatabase
+  - path: idf_examples/AssistNowExample2_pushNavigationDatabase
   - path: idf_examples/CallbackExample1_NAVHPPOSLLH
   - path: idf_examples/CallbackExample2_GPRMC
   - path: idf_examples/CallbackExample4_NAVSAT

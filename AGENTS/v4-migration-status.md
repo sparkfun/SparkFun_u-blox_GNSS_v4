@@ -1,3 +1,19 @@
+## Release status (final entry - library is now public and released)
+
+**As of this update, SparkFun_u-blox_GNSS_v4 is publicly released as v4.0.0, and this
+migration/status doc is considered complete.** The repository is public at
+https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4, and its Doxygen API documentation is built
+and published automatically by the repo's `build-deploy-ghpages.yml` GitHub Action to
+https://docs.sparkfun.com/SparkFun_u-blox_GNSS_v4 - both reviewed and confirmed working this
+session (see Phase 40 below for the verification detail). Everything below this point is the
+historical, phase-by-phase record of how the library got here; it has not been rewritten, only
+appended to.
+
+**Post-release maintenance (v4.1.x) is recorded as Phases 41-42**, appended after Phase 40 below:
+Phase 41 = GitHub issue #4 (`setAutoUBXrate()` on UART2) and the v4.1.2 version/workflow fix;
+Phase 42 = GitHub issue #5 (`readNavigationDatabase()` one UBX-MGA-DBD message short) and the two
+new AssistNow examples, including the measured time-to-first-fix results.
+
 ## Next session (planned)
 
 **NMEA is considered done for now** (Phases 12-25 cover the 9 standard sentences + GSV's
@@ -2033,8 +2049,419 @@ requested task.
   the new entries highlight as expected (KEYWORD1 orange, KEYWORD2 brown/maroon, LITERAL1 blue);
   worth a quick look next time a sketch is opened in the IDE.
 
+**Phase 39 (whole-library doxygen documentation pass, implemented by Claude across this and the
+prior session - not yet run through the actual `doxygen` tool, since it could not be installed in
+any sandbox available):** User asked: *"Please go through the entire library (all `.cpp` and `.h`
+files) and thoroughly comment them - using the doxygen style for function/method comment blocks. I
+prefer the `/** ... */` style, not the `///` style of comments. The intention is to use doxygen to
+generate comprehensive, complete documentation for the library. Retain all existing
+non-doxygen-format function/method comments as background information. Add a concise but
+informative `@brief` for every function / method."* This touched every one of the 69 files in
+`src/`, and is by far the largest single-instruction task in this engagement to date - unlike
+every prior phase, which added or reworked one message or one subsystem, this one is a pass over
+the library's *entire* public and internal API surface.
+
+- **Scope decisions Claude made along the way, not yet explicitly confirmed by the user - flagged
+  here so they can be corrected if not what was intended:**
+  1. **Doxygen blocks go on `.h` declarations only; `.cpp` definitions are left untouched.**
+     `u-blox_GNSS.cpp` (9211 lines) and `sfe_bus.cpp`/`sfe_debug.cpp` were not touched at all - their
+     existing comments satisfy "retain existing comments as background," and doxygen conventionally
+     documents the declaration a caller actually sees, not a second, duplicate copy on the
+     definition (which would drift out of sync with the header over time). `u-blox_GNSS.cpp` was
+     read extensively for context (see below) but never edited.
+  2. **Four pure-data headers with zero functions/methods were correctly excluded**, confirmed by
+     grepping each for function-like patterns first: `u-blox_structs.h`, `u-blox_Class_and_ID.h`,
+     `u-blox_config_keys.h`, `u-blox_external_typedefs.h` (typedefs/enums/consts only, ~2500
+     combined lines).
+  3. **No class-level doxygen blocks were added** - only individual function/method declarations,
+     per the literal wording of the instruction ("a concise but informative `@brief` for every
+     function / method").
+  4. **CRLF vs. LF was preserved per-file** throughout (the `ubxMessages/*.h`/`nmeaMessages/*.h`
+     files are LF-only, matching every prior phase's own convention for that subfolder; every core
+     `.h` file touched elsewhere is CRLF, matching its pre-existing convention) - verified after
+     every single edit, never assumed.
+- **Group 1 (53 per-message header files, `src/ubxMessages/*.h` (44 files) + `src/nmeaMessages/*.h`
+  (9 files)):** each declares exactly one method - its own constructor, which registers the message
+  with the base registry via `addClassID()`/`addNMEA()`. Each got exactly one doxygen block, built
+  from a `UBX_DESC` lookup table (sourced from `u-blox_Class_and_ID.h`'s own inline comments) plus a
+  `UBX-CLASS-ID` mnemonic derived from the file's own `Class =`/`ID =` constants (NMEA files: parsed
+  from each file's own header-comment description). First-draft wording was a run-on sentence;
+  fixed in a second pass with cleaner phrasing (a `git checkout --` revert was attempted first but
+  failed - the device bridge blocks `.git/index.lock` deletion by default - so the fix was a second
+  corrective script instead, located via the same anchor-regex technique, not a revert).
+- **`ubxMessage.h`/`ubxMessageRegistry.h`/`ubxMessageVector.h`/`nmeaMessage.h`/
+  `nmeaMessageRegistry.h`/`nmeaMessageVector.h` (the registry/base-class machinery):** every
+  constructor/destructor/public and protected method documented with full `@param`/`@return` detail
+  where the signature has more than one or two trivial parameters - e.g. `ubxMessage::addClassID()`
+  documents all 18 parameters, including the optional block/footer ones added across Phases 27-30.
+- **`sfe_debug.h`/`sfe_bus.h` (the debug-print and bus-abstraction base classes):** all 7
+  `debugPrint`/`debugPrintln` overloads plus `copyDebugStateFrom()`; `sfe_bus.h`'s four classes
+  (`GNSSDeviceBus`, `SfeI2C`, `SfeSPI`, `SfeSerial`, `SfePrint`) each fully documented - `SfeI2C`
+  and `SfeSerial` share byte-for-byte identical inline stub code for a couple of no-op methods,
+  which broke a naive whole-file regex (matched twice); fixed with a `scoped_replace()` helper that
+  slices the text between two class-boundary markers before matching, reused for every subsequent
+  multi-class file in this phase.
+- **`SparkFun_u-blox_GNSS_v4.h` (the top-level transport-subclass header):** all 15 constructor/
+  `begin()` overloads across `SFE_UBLOX_GNSS`/`_SPI`/`_SERIAL`/`_SUPER`.
+- **`u-blox_GNSS.h` (1469 -> 3501 lines after this pass, ~300+ methods, by far the largest single
+  file in the library and the bulk of this phase's actual work):** documented in 5 planned chunks
+  by section, executed as roughly 20 smaller Python passes rather than one giant script, each
+  passes' regex/exact-text anchors verified to match exactly once before any write:
+  1. **Chunk 1** - the class's general-purpose methods before "Specific commands": constructor/
+     destructor, bus setup (`isConnected`/`init`/`setCommunicationBus`/`ping`/read-write-byte
+     family), buffer sizing (packetCfg/RTCM/file buffers), `process()`/`processUBX()`/
+     `processNMEA()`/checksum/`sendCommand()` family, AssistNow (`pushAssistNowData()` x6 overloads,
+     `setUTCTimeAssistance()`, `setPositionAssistanceXYZ/LLH()`, `findMGAANOForDate()` x2,
+     `readNavigationDatabase()`), and the file-buffer support block.
+  2. **Chunk 2** - "Specific commands": port config (I2C address/serial rate/output/input x5 ports
+     each), reset-to-defaults, save-configuration, survey mode, static position, DGNSS config,
+     protocol-version/module-info, geofences, power save/off, dynamic model, odometer, GNSS
+     enable/disable, ESF auto-alignment, ackAiding/AOP, SPARTN dynamic keys/CRC/parsing,
+     SEC-UNIQID, then the large VALGET family (including the `extractConfigValueByKey<T>()`
+     template), the VALSET family (including `addCfgValset<T>()`/`setCfgValset<T>()`), the generic
+     (Class,ID)-keyed UBX message-access family (`getUbxMessagePtr`/`...Field`/`...BlockField`/
+     `...FooterField`/`...RawPtr` and their Callback siblings, `getUBX`/`getUBXfield`,
+     `setAutoUBX`/`setAutoUBXrate`/`assumeAutoUBX`/`flushUBX`/`logUBX`/`setAutoCallbackPtr`), and
+     the thin per-message wrapper getters (`getNAVSAT`, `getRXMSFRBX`, `getMONRF`, `getESFMEAS`,
+     etc.).
+  3. **Chunk 3** - CFG-RATE (`setNavigationFrequency`/`setMeasurementRate`/`setNavigationRate` and
+     their getters) plus the long run of "Helper functions for X" bare one-liner field getters:
+     DOP, ATT, the ~44-method PVT block (by far the single densest run of getters in the file -
+     every NAV-PVT field from `getTimeOfWeek()` through `getGeoidSeparation()`), POSECEF,
+     HPPOSECEF, HPPOSLLH, PVAT, SVIN, TIMELS, RELPOSNED, DAHEADING, AOPSTATUS, TIM-TP, MON-HW/
+     antenna status, ESF-ALG, HNR, and the closing block of thin per-message wrappers
+     (`getNAVPOSLLH`, `getESFINS`, `getHNRPVT`, etc.). Most of these had no prior comment at all
+     (bare declarations under a section-header comment); their `@brief` text was written from the
+     section header's own context plus general UBX-protocol domain knowledge built up over this
+     whole engagement, not from any per-line existing comment.
+  4. **Chunk 4** - NEO-F10N helpers (LNA mode, GPS L5 health override), main talker ID, NMEA high
+     precision mode, the generic NMEA access/auto family (mirroring Chunk 2's generic UBX family),
+     RTCM 1005/1006 callbacks (output and input-via-`pushRawData()` variants), RTCM logging mask,
+     `enableUBXlogging()`, and the `extractLongLong`/`extractSignedLong`/.../`extractUnsignedBits`/
+     `extractSignedBits` byte- and bit-field extraction helpers (explicitly public since v2.0, for
+     a sketch author extracting data from a custom packet).
+  5. **Chunk 5** - the `protected:` internals: `setAutoMsgRateVal`, `checkUbloxInternal`,
+     `addToChecksum`, `pushAssistNowDataInternal`, `findMGAANOForDateInternal`, `autoLookup`,
+     the `initXxx()` allocator family, the NMEA-internal helper family (`logThisNMEA` through
+     `doesThisNMEAHaveCallback`), `crc24q`, the UBX-logging internal family (`logThisUBX`/
+     `processThisUBX`/`logOrProcessThisUBX`), the file-buffer internals (`createFileBuffer`
+     through `writeToFileBuffer`), and the RTCM-buffer internals (`createRTCMBuffer` through
+     `writeToRTCMBuffer`) - plus the inline `rtcmInputStorage.init()` method. The trailing
+     `typedef union` block (the six/seven `unsignedSignedNN`/`unsignedNNfloat`/`unsignedNNdouble`
+     reinterpretation unions) is pure data with no methods and was correctly left undocumented.
+- **A real bug introduced and caught during this phase's own final verification, not by the
+  user:** the doxygen text written for `prepareModuleInfo()` read "...used by `getModuleInfo()` and
+  the `getProtocolVersion*/getFirmwareVersion*/getFirmwareType`/`getModuleName` accessors" -
+  intending `*` as a path-style wildcard separator, but a literal `*/` inside a `/** ... */` block
+  is itself a comment-close token, so this one line silently terminated the doxygen comment two
+  sentences early, leaving the rest of the intended comment (and the `@param`/`@return` tags) as
+  bare text sitting directly in the class body - which would have failed to compile. **Caught by a
+  systematic balanced-comment scan** (pairing every `/*`/`*/` token in the file in sequence and
+  checking the running depth never goes negative), not by proofreading the text by eye - the same
+  `/**`/`*/` counts (474 vs. 477) that looked like an ordinary, harmless 3-comment discrepancy
+  (correctly explained by 3 stray pre-existing plain `/* ... */`-style comments elsewhere in the
+  file) actually masked this real defect until the token-order scan was run. Fixed by rewording to
+  avoid any `*/` substring, then the whole `src/` tree (all 67 header files, not just
+  `u-blox_GNSS.h`) was re-scanned the same way and confirmed clean. **This is worth remembering for
+  any future doxygen-writing pass in this codebase: a simple `/**`/`*/` count match is not
+  sufficient verification on its own - use a proper token-order/depth scan, since a stray `*/`
+  inside prose can hide behind a count that happens to still look plausible.**
+- **Verification method used throughout, every single edit, before any write ever landed:**
+  1. Every regex/exact-text insertion point asserted to match **exactly once** in the file before
+     writing - any 0 or 2+ match count aborts that one insertion (prints `FAIL`, changes nothing)
+     rather than risking a wrong or duplicate insertion. This caught several early mistakes
+     (guessed exact whitespace counts before a trailing `//` comment, one whole-file regex matching
+     twice across `sfe_bus.h`'s two identically-shaped classes) before anything was ever written to
+     disk - no file was ever corrupted by a bad match.
+  2. After every batch of insertions: brace-count balance (`{` vs `}`), CRLF-count-vs-total-line-
+     count (confirming the file's EOL convention survived unchanged), and a running `@brief` count
+     (confirming the expected number of new blocks actually landed).
+  3. At the very end of the whole `u-blox_GNSS.h` effort, and then again across the entire `src/`
+     tree: the token-order comment-balance scan described above (the one that caught the real
+     bug), plus a parenthesis-count balance check.
+  4. **`doxygen` itself could not be run** to confirm the result actually parses as valid Doxygen
+     input - `apt-get install doxygen` failed with 403 Forbidden fetching from `archive.ubuntu.com`
+     in the cloud sandbox (same network-allowlist restriction that has blocked Docker-based
+     compiling throughout this whole engagement), and there is no `sudo`/root access on the user's
+     local device to install it there either. This is the one verification step from the original
+     plan that could not be completed in any environment tried.
+- **Final counts (after the Chunk-1 correction below):** 474 `@brief` blocks in `u-blox_GNSS.h`
+  alone; 679 `@brief` blocks across all 67 header files in `src/` combined. `u-blox_GNSS.h` is now
+  3536 lines (all still 100% CRLF); comment-token-order scan clean across the whole `src/` tree.
+- **Not yet done:**
+  - **Not run through the actual `doxygen` tool.** If a Doxyfile/config doesn't already exist for
+    this repo, one would need to be created first too.
+  - **The `.cpp` files' own inline comments were read for context (extensively, for the many
+    Chunk-3 field getters with no prior header comment) but never edited** - per the declarations-
+    only policy above. If the user would prefer definitions in `.cpp` files to also carry doxygen
+    (some projects do this for `.cpp`-and-`.h`-split libraries), that would be a deliberate,
+    separate ask - doing so risks the two copies drifting apart over time as either one changes.
+  - **The four scope decisions listed at the top of this entry** (declaration-only placement, no
+    class-level docs, skip the 4 pure-data files, CRLF/LF preserved per-file) were Claude's own
+    judgment calls, made transparently as the work progressed, not yet explicitly confirmed by the
+    user - flagged here so they can be corrected if a different approach was actually wanted.
+  - Whether the on-device copy of this doc, at `AGENTS/v4-migration-status.md` (per the user's own
+    note that they moved it and `AGENTS.md` into a new `AGENTS` folder), should be re-synced to
+    match this project-doc copy has not been done and should probably be confirmed with the user
+    first, rather than assumed.
+
+**Phase 39 correction (found by the user's own ESP32/Arduino compile, not by Claude's own
+verification; confirmed fixed by that same compile immediately afterward):** the user reported
+real compile errors (`error: expected unqualified-id before '{' token`, `cannot declare field
+'...' to be of abstract type 'SparkFun_UBLOX_GNSS::SfeSPI'`, `'class SFE_UBLOX_GNSS' has no member
+named 'begin'`) when building the `CallbackExample15_MONRF` example sketch against this branch.
+Root cause: in three files - `src/SparkFun_u-blox_GNSS_v4.h`, `src/sfe_bus.h`, and the Chunk-1
+section of `src/u-blox_GNSS.h` - one of the doxygen-insertion scripts had **replaced the
+function/method signature line with the doxygen block instead of inserting the block above it**,
+silently deleting real declarations: all 15 constructor/`begin()` signatures in
+`SparkFun_u-blox_GNSS_v4.h`, the constructors plus every pure-virtual override in `SfeSPI`
+(making it - and by extension `SFE_UBLOX_GNSS_SPI`, which embeds one - an abstract, uninstantiable
+type) and most of `SfeI2C`/`SfeSerial`/`SfePrint` in `sfe_bus.h`, and ~20 declarations in
+`u-blox_GNSS.h` including `checkCallbacks()`, `pushRawData()`, and the `DevUBLOXGNSS`
+constructor/destructor. This is exactly the failure mode the earlier verification passes (brace/
+paren balance, `@brief` count, comment-token-order scan) could not catch, because deleting a
+declaration line and replacing it with a same-shaped comment block doesn't unbalance braces,
+parens, or comment tokens at all - it's invisible to every structural check used in this phase,
+and would only show up as a *missing* declaration, which none of the checks were looking for.
+
+- **Fix applied:** since none of this branch's doxygen work had been committed yet, `git show
+  HEAD:<path>` gave a clean, pre-doxygen baseline for every file. A script diffed each of the 3
+  affected files against its HEAD baseline with Python `difflib`, and for every `replace` opcode
+  where the HEAD side was a real code line (not a comment) and the working-tree side was purely a
+  doxygen comment block, it re-emitted the doxygen block **followed by** the original code line(s)
+  - i.e. turned "declaration replaced by doxygen" back into "doxygen above declaration," which is
+  what should have happened the first time. The script explicitly left alone any `replace` opcode
+  where the HEAD side was itself a comment (to avoid disturbing the legitimate comment-reword
+  fixes made elsewhere in this phase, e.g. the Group-1 run-on-sentence cleanup and the
+  `prepareModuleInfo()` bug fix above) - in practice every `replace`/`delete` opcode in these 3
+  files turned out to be this exact bug pattern, with zero ambiguous cases.
+- **Structurally verified after the fix, before the rebuild:** `git diff --numstat` across the
+  *entire* `src/` tree showed zero deletions in every single file (all 70 files, previously 3 had
+  deletions) - i.e. the working tree was now provably a pure superset of the clean baseline, line
+  for line, everywhere. All 15 `SFE_UBLOX_GNSS*`/`begin()` signatures, all of
+  `SfeSPI`'s/`SfeI2C`'s/`SfeSerial`'s pure-virtual overrides, and all ~20 `u-blox_GNSS.h` Chunk-1
+  declarations were confirmed present again by direct grep. CRLF preserved in all 3 files.
+  `@brief` counts unchanged (474 / 679), since only code was restored, not comments. Brace/paren-
+  balance and comment-token-order re-scanned clean across all 70 `src/` files (the only two files
+  flagged by a naive paren-count check, `nmeaMessage.h` and the untouched `u-blox_GNSS.cpp`, were
+  confirmed via `git show HEAD` to already have that same "imbalance" in the pre-doxygen original
+  - a paren inside a prose comment, not a real defect, and not introduced by this phase or its
+  fix).
+- **Confirmed by an actual rebuild:** the user rebuilt `CallbackExample15_MONRF` for the
+  `esp32:esp32:esp32thing_plus_c` board (Arduino IDE + `arduino-builder`, `-Wall -Wextra`) and
+  reported **successful compilation with no warnings and no errors** - sketch, both fixed core
+  classes, and the rest of the library all compiled and linked cleanly (404065 bytes / 6% program
+  storage, 21584 bytes / 6% dynamic memory). This is the real-toolchain confirmation this session
+  could not produce itself (no Arduino/ESP32 compiler available in the cloud sandbox or via the
+  device bridge) - the fix is confirmed working, not just structurally plausible.
+- **Lesson for any future automated insertion pass over this codebase:** "does the file still
+  parse/balance" is not sufficient to prove an insertion didn't destroy code - a line-for-line
+  diff against a clean baseline (or, short of that, a `grep` for every declaration that's supposed
+  to exist) is needed to catch a same-shaped substitution like this one. This class of bug is only
+  possible when a script's insertion logic can match and replace a target line instead of
+  inserting relative to it; the scripts responsible predate this session's own "verified exact-line-
+  match" insertion technique, which inserts before a matched line rather than on top of it. Given
+  this was found in only 3 of 70 files and both files with deletions in a full-repo `git diff
+  --numstat` were the exact files that had this bug, a full-repo zero-deletions check against a
+  clean git baseline is now a cheap, high-value addition to the standard verification checklist
+  for any future insertion pass over this codebase, alongside the brace/paren/comment-token checks
+  already in use.
+- **Still open:** only the example sketches actually rebuilt so far have been confirmed (this one,
+  `CallbackExample15_MONRF`, for one board target). The library has ~100+ examples across several
+  transport/board combinations; a broader rebuild sweep (more examples, and ideally the I2C/SPI/
+  Serial and SUPER-class constructors specifically, since those were the ones most directly
+  affected) would give more complete confidence, though the structural fix is now identical in
+  kind for all of them (declarations fully restored, verified present by direct grep).
+
+**Phase 40 (final documentation hardening and public release, this session):** Following
+Phase 39's whole-library doxygen pass (and its Phase 39 correction, above), three more rounds of
+user-driven verification and hardening closed this engagement out.
+
+- **Doxygen comment-block delimiter fixed across all 70 `src/**/*.h`+`*.cpp` files.** The user's
+  own manual header-comment rewrite (new `@date`/`@copyright`/`@file` tags on every file) had used
+  plain `/* ... */`, which Doxygen does **not** parse as a documentation block (only `/**`, `/*!`,
+  `///`, `//!` are recognized as special/doxygen comment blocks, regardless of any Doxyfile
+  setting) - so none of those new tags would ever have been picked up. Fixed by rewriting only the
+  first 2-3 bytes of each file's opening comment (`/*` -> `/**`), a change provably incapable of
+  touching anything else in the file; verified across all 70 files (zero remaining plain-`/*`
+  openers) and re-checked against the same structural checks used throughout this engagement
+  (brace/paren balance, comment-token-order).
+- **The entire repository (all 121 git-tracked files) was converted to CRLF line endings**, per
+  explicit user instruction, using a normalize-then-reapply idiom (`\r\n` -> `\n` -> `\r\n`)
+  safe against any already-mixed files (none were found). `.gitattributes` was then changed from
+  `* text=auto` to `* text=auto eol=crlf`, so every future clone/checkout gets CRLF regardless of
+  the cloning machine's own `core.autocrlf` setting or platform, durably locking in the convention
+  rather than relying on it being re-applied by hand.
+- **User confirmed a real Arduino/ESP32 test compile (one of the `CallbackExample`s) succeeded
+  with zero warnings and zero errors** after all of the above - the first real-toolchain
+  confirmation that the doxygen pass, the `/**` delimiter fix, and the CRLF/`.gitattributes`
+  changes together haven't broken anything.
+- **The library is now public and released.** Repository:
+  https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4 (v4.0.0). The repo's
+  `build-deploy-ghpages.yml` GitHub Action builds the Doxygen docs and deploys them to
+  https://docs.sparkfun.com/SparkFun_u-blox_GNSS_v4 automatically.
+- **The live Doxygen site was independently reviewed this session, using a real browser (not just
+  a page-summarizing fetch tool) to resolve an earlier ambiguous signal.** An initial check of the
+  largest generated page, `class_dev_u_b_l_o_x_g_n_s_s.html` (the `DevUBLOXGNSS` class reference,
+  300+ documented methods), via a text-summarizing fetch tool reported the page as possibly
+  truncated or missing late-page content - but that tool's own documentation notes it may
+  summarize very large pages, and its answers repeatedly referenced "the provided excerpt",
+  suggesting a partial slice rather than a real site defect. Loading the actual page in a real
+  browser and inspecting it directly confirmed the page is complete and well-formed:
+  `document.readyState === "complete"`, the rendered HTML ends with a proper `</html>`, 568
+  documented members are present, and the specific late-page content the fetch tool had flagged as
+  missing (`writeToRTCMBuffer`, `rtcmInputStorage`) is present and correct. The site's index/
+  landing page was also checked directly: it renders the repo's own README (title, version banner
+  `v4.0.0-2-g08943c2`, the "Written by AI, directed by SparkFun" section, the compatibility/
+  repository-contents/documentation sections) correctly, and every asset request (CSS, JS, search
+  index, images, the class's own inheritance-graph SVG) returned HTTP 200 with no console errors.
+  **The live Doxygen documentation site is confirmed complete and correctly built - Phase 39's one
+  remaining unresolved item ("could `doxygen` actually be run, and does the output look right") is
+  now resolved: yes, via the GitHub Action, and yes, the output is correct.**
+- **With this, the v4 migration/documentation effort described across all 40 phases of this doc
+  is considered complete.** `MGA_ACK_DATA0`/`MGA_DBD` remain the only messages left unmigrated (out
+  of scope until explicitly requested, unchanged since Phase 33), and the handful of narrower open
+  items listed under "Not yet done" below (RXM-PMP/RXM-QZSSL6 hardware validation blocked on
+  external service/hardware availability, NMEA GSV's last-sentence edge case, a few low-priority
+  items) remain exactly as described there - none of them block the public release.
+
+**Phase 41 (post-release: GitHub issue #4, `setAutoUBXrate()` fails on UART2 - fixed, hardware-
+validated; plus the v4.1.2 version bump):** https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4/issues/4
+
+- **Root cause:** `setAutoUBXrate()`/`setAutoNMEArate()` passed `_commType` straight into
+  `getMsgOutKey()` as the index into each message's `_msgOutKeys[4]` array. `_commType` is
+  `COMM_TYPE_I2C=0, COMM_TYPE_SERIAL=1, COMM_TYPE_SPI=2`, but the array order is
+  `{I2C, SPI, UART1, UART2}` - so Serial selected the SPI key, SPI selected UART1, and UART2 (set by
+  `connectedToUART2()`, which sets `_UART2` but does not change `_commType`) was never reachable.
+- **Fix (Claude, committed by the user in `0e64bef` "v4.1.2: Fix for issue #4, tested with the new
+  PeriodicExample3"):** new protected helper `uint8_t msgOutKeyPortIndex() const` in
+  `u-blox_GNSS.h`/`.cpp`, mapping `COMM_TYPE_SPI` -> 1, `COMM_TYPE_SERIAL` -> `_UART2 ? 3 : 2`,
+  `COMM_TYPE_I2C`/default -> 0. Both call sites now use it. Both functions also gained an
+  `if (key == 0) return false;` guard after the lookup, because some messages have no MSGOUT key for
+  a given port (NAV-AOPSTATUS UART2 on some firmware, HNR, SEC-UNIQID) and previously a zero key was
+  written blindly; the comments point to `assumeAutoUBX()`/`assumeAutoNMEA()` for those cases.
+- **New example `PeriodicExample3_NAVPVT_on_UART2` (Arduino + IDF),** replicating the reporter's code:
+  `connectedToUART2()`, a `begin()` retry loop, `setUART2Output(COM_TYPE_UBX)`,
+  `setUART2Input(UBX|NMEA|RTCM3|SPARTN)`, `setAutoUBXrate("NAV","PVT",1,true,VAL_LAYER_RAM)`, then a
+  `getVal8()` read-back of the NAV-PVT rate on all four ports (expect `UART2: 1`). Tested on a
+  SparkFun Thing Plus C + ZED-X20P (HPG 2.11) on Arduino and on ESP-IDF v6.1.
+- **Finding worth remembering (hardware-verified with a Saleae Logic Pro 8 capture):** the X20
+  defaults are `CFG-UART2INPROT-UBX = 1` but `CFG-UART2OUTPROT-UBX = 0` (X20 HPG 2.11 Interface
+  Description, Tables 109/110). Even so, `begin()` connects on UART2: **the module replies to polls
+  and sends ACKs on the port the request arrived on, regardless of OUTPROT.** OUTPROT only gates the
+  module's own periodic output. (Claude initially guessed the defaults wrongly, then wrongly
+  suggested `assumeSuccess`; `assumeSuccess` needs `_signsOfLife` - a valid UBX checksum or a `$G`
+  NMEA header - which a default UART2 never produces. The user's capture settled it.) A UART 8N1
+  + UBX/NMEA decoder for Logic 2 CSV exports, `decode_uart_ubx.py`, was left in the user's
+  `GNSS_v4_Library_Scratch` folder.
+- **v4.1.2:** the version lives in `library.properties` (Arduino) and `idf_component.yml` (IDF,
+  set to 4.1.2 to match). `.github/workflows/idf_component_upload.yml`'s version-extraction regex
+  was fixed to `grep -Po "(?<=^version=)[0-9]+\.[0-9]+\.[0-9]+" ./library.properties`. The upload
+  action (`espressif/upload-components-ci-action@v2`) passes the version explicitly, and skips
+  silently if that version already exists in the registry.
+
+**Phase 42 (post-release: GitHub issue #5, `readNavigationDatabase()` one UBX-MGA-DBD message short
+on a MAX-M10S over I2C - NOT reproduced; two new AssistNow examples; `getAckAiding()` fix):**
+https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4/issues/5
+
+- **The report:** on a FireBeetle ESP32 + MAX-M10S over I2C, the closing UBX-MGA-ACK's
+  `msgPayloadStart` (the number of DBD messages the module sent) was always one more than
+  `databaseEntriesRX` (80/79, 81/80, 87/86; a later capture had 94 DBD messages, 6960 bytes), and
+  the read then ran to the full `maxWait` (~10315 ms with `maxWait = 10000`). No ring-buffer
+  overflow or oversized-message rejection was seen. Firmware version and other enabled I2C output
+  not stated.
+- **New example `AssistNowExample1_readNavigationDatabase` (Arduino + IDF; based on the v3
+  Example2_AssistNowAutonomous_DatabaseRead):** enables AssistNow Autonomous (`setAopCfg()`), shows
+  NAV-SAT `aopAvail` and NAV-AOPSTATUS `status` via callbacks until a key is pressed, then reads the
+  database with limited debug enabled and prints it as a C array (`size_t databaseLen = ...;
+  const uint8_t database[...] = {...};`). Issue #5 diagnostics: every byte received during the read
+  is captured via `setOutputPort()`, the captured DBD messages are compared one by one with the
+  returned database, and the read time is reported against `maxWait`. On ESP32 it writes
+  `/MGADBD.UBX` (raw UBX, file size == `databaseLen`) and `/MGARAW.UBX` (the raw capture) to
+  microSD. NAV-AOPSTATUS is not documented in M10 SPG 5.00 but IS output by a "ROM SPG 5.00"
+  MAX-M10S (header note in the example).
+- **Results on the user's hardware (Thing Plus C + MAX-M10S, ROM SPG 5.00, PROTVER 34.00, I2C) -
+  three runs, issue #5 not reproduced in any:**
+
+  | Run | DBD messages (ACK / captured / stored) | Bytes | Read time | Max DBD payload |
+  | --- | --- | --- | --- | --- |
+  | 1 | 61 / 61 / 61 | - | 539 ms | 88 |
+  | 2 | 109 / 109 / 109 | 7900 | 883 ms | 120 |
+  | 3 | 117 / 117 / 117 | 8624 | 962 ms | 120 |
+
+  Every captured DBD message was in the database; the capture was always exactly 63 bytes longer
+  than the database (4 other UBX messages: the closing MGA-ACK plus the module's replies to the library's own
+  ACKAIDING get/set).
+  Largest payload 120 < `UBX_MGA_DBD_LEN` (164), so no overrun. Ruled out on this hardware:
+  database size (117 > the reporter's 94), the 120-byte entry type, and read timing. **Remaining
+  hypotheses:** other periodic output (NMEA or UBX) left on I2C during the read in the reporter's
+  code (next experiment: comment out `setI2COutput(COM_TYPE_UBX)` in AssistNowExample1), firmware
+  differences, or the FireBeetle's I2C. A reply in Paul's voice was drafted for the issue (to be
+  posted by the user after the next library release).
+- **New example `AssistNowExample2_pushNavigationDatabase` (Arduino + IDF; modelled on the v3
+  Example3_AssistNowAutonomous_DatabaseWrite; first written as `AssistNowExample2_PushMGA`, renamed
+  at the user's request):** on ESP32 reads `/MGADBD.UBX` from microSD, falling back to
+  `database[databaseLen]` from `database.h` (the AssistNowExample1 C array is pasted there) if the
+  file can't be read, or on other hardware. Checks the database (DBD count, checksums), then on
+  ESP32 connects to WiFi (`secrets.h`) and gets UTC from NTP - Arduino: `WiFi.begin()` +
+  `configTime(0, 0, "pool.ntp.org", "time.nist.gov")` + `sntp_get_sync_status()` (note it resets the
+  status after returning COMPLETED); IDF: new `main/wifi_time.c` using `esp_wifi` +
+  `esp_netif_sntp_init()`/`esp_netif_sntp_sync_wait()`, written in C like `sd_card.c`. Then
+  `begin()`, `setAopCfg(1)`, an optional GNSS cold start (`COLD_START_FIRST`: `cfgRst()` with
+  navBbrMask 0xFFFF, resetMode 0x02), `setAckAiding(1)`, `setUTCTimeAssistance()` (with
+  microseconds from `gettimeofday()`), then `pushAssistNowData(..., SFE_UBLOX_MGA_ASSIST_ACK_YES,
+  MGA_ACK_MAXWAIT)`, then polls NAV-PVT and prints the time to the first 3D fix. `PUSH_DATABASE 0`
+  gives a control run (same cold start and time push, no database). M10 SPG 5.10 3.13.4.2: pushed
+  MGA-DBD messages are ACKed when CFG-NAVSPG-ACKAIDING is set, and DBD data should only be pushed
+  back to the module that generated it.
+- **Results (Arduino, Thing Plus C + the same MAX-M10S, database = the 117-entry run-3 file):**
+
+  | Run | Accepted (ACKed) | Push time | First 3D fix after the push | ... after the cold start |
+  | --- | --- | --- | --- | --- |
+  | Database pushed, `MGA_ACK_MAXWAIT` 100 ms | 115 / 117 (2 ACK timeouts) | 1502 ms | 0.1 s | ~2.6 s |
+  | Control, `PUSH_DATABASE 0` | - | - | 32.3 s | ~33 s |
+  | Database pushed, `MGA_ACK_MAXWAIT` 250 ms | 117 / 117 | 1319 ms | 0.5 s | ~2.3 s |
+
+  The database push turns a ~33 s cold start into a ~2.5 s start, and the control run confirms the
+  cold start really clears the module's own navigation data. The module occasionally takes ~100 ms
+  to ACK a DBD message (one took 103 ms in the third run), so `MGA_ACK_MAXWAIT` was raised from 100
+  to 250 ms. A late ACK is silently discarded by `pushAssistNowDataInternal()` (it doesn't match the
+  message being waited for), and `bytesPushed` counts bytes sent, not accepted - only the debug
+  lines show acceptance.
+- **Library fix (`u-blox_GNSS.cpp`, `pushAssistNowDataInternal()`, ENQUIRE path):** it called
+  `getAckAiding(maxWait)`, passing `maxWait` as the `layer` argument. Now
+  `getAckAiding(VAL_LAYER_RAM)`, using the default VALGET maxWait (the function's own `maxWait` is
+  the short per-message MGA wait, 7 ms by default - too short for a VALGET).
+- **Side observations:** NTP sometimes took 17-19 s to sync (the 15 s lwIP SNTP retry after a lost
+  first request) and sometimes 0.5 s; staying with `pool.ntp.org` in the examples (the pool asks
+  products to register a vendor zone instead). The Arduino build failed to link once on the user's
+  machine due to a custom PSRAM `libmbedcrypto.a` (`RTK_CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC`), fixed
+  by updating arduino-esp32 - not a library problem. In the control run, NAV-PVT reported non-zero
+  Lat/Long with fixType 0 before the fix (the receiver's unvalidated estimate).
+- **ESP-IDF results (both AssistNow IDF examples built and tested on ESP-IDF v6.1, Thing Plus C +
+  the same MAX-M10S):** both work. AssistNowExample2 (IDF) read a 123-entry database (9188 bytes)
+  from `/sdcard/MGADBD.UBX`; `main/wifi_time.c` connected and set the time from NTP (about 5 s from
+  getting an IP address to sync - probably lwIP's random SNTP start-up delay, up to 5 s, rather
+  than the 15 s retry seen on Arduino); all 123 DBD messages were accepted (push 1232 ms), with two
+  ACKs at 101 and 102 ms - so the 250 ms `MGA_ACK_MAXWAIT` is needed on IDF too; first 3D fix
+  0.5 s after the push. Two harmless-looking warnings: `gpio: conflict found for GPIO[5]` (just
+  after the microSD unmount, i.e. the SD SPI chip-select being released; the file read worked) and
+  the bootloader's flash-size warning (the board has 16 MB, the build header says 2 MB - a board
+  setting, not something the example needs to set).
+- **State at the end of this phase:** the AssistNow examples, the README rows, the
+  `idf_component.yml` example list and the `getAckAiding()` fix are uncommitted on `develop`; the
+  user will up-issue the library before posting the issue #5 reply.
+
 ## Not yet done
 
+- **GitHub issue #5 (Phase 42) is open - not reproduced.** Next experiment: AssistNowExample1 with
+  NMEA left on I2C during the read; ask the reporter for firmware (MON-VER), other enabled I2C output
+  and `enableDebugging()` output. Offered but not done: make `readNavigationDatabase()` stop at the
+  closing MGA-ACK even on a count mismatch and report it; report a late MGA-ACK in
+  `pushAssistNowData()` instead of discarding it silently.
+- **AssistNowExample1/2 are built and hardware-tested on both Arduino and ESP-IDF v6.1** (Phase 42).
+  Small offered follow-ups for both versions of AssistNowExample2: print Lat/Long only with a 2D/3D fix; make the loop really 1 Hz (it polls NAV-PVT,
+  which waits ~1 s, then delays 1 s); resend the SNTP request if no reply within a few seconds.
 - **`keywords.txt`'s full re-sync is done (Phase 38)** - the item first flagged in Phase 7 and
   repeated in every subsequent phase that touched the API surface without touching this file. See
   Phase 38 above for the full breakdown of what was rebuilt, removed, and added. Not yet opened in

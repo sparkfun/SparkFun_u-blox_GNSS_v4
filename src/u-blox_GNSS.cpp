@@ -3544,7 +3544,9 @@ size_t DevUBLOXGNSS::pushAssistNowDataInternal(size_t offset, bool skipTime, con
   // If mgaAck is ENQUIRE, we need to check UBX-CFG-NAVX5 ackAiding to determine if UBX-MGA-ACK's are expected
   if (mgaAck == SFE_UBLOX_MGA_ASSIST_ACK_ENQUIRE)
   {
-    uint8_t ackAiding = getAckAiding(maxWait); // Enquire if we should expect Acks
+    // Enquire if we should expect Acks. Read the RAM layer (the current configuration). Note: maxWait is the
+    // (short) delay / ACK wait for each MGA message, so use the default maxWait for this VALGET
+    uint8_t ackAiding = getAckAiding(VAL_LAYER_RAM);
     if (ackAiding == 1)
       checkForAcks = true;
 

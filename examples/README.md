@@ -51,6 +51,13 @@ Unless stated otherwise, the examples use I2C (Qwiic) and print to Serial at 115
 | CallbackExample14_NEO-D9C_RXMQZSSL6 | UBX RXM-QZSSL6. **NEO-D9C** (I2C address 0x43). Also enables RXM-QZSSL6 on UART1 and UART2 | `version`, `svId`, `cno`, `bitErrCorr`, `chn`, `msgName`, `chName` |
 | CallbackExample15_MONRF | UBX MON-RF (every 2 epochs). Also enables antenna short and open detection | `version`, `msgSource`. Per RF block: `blockId`, `antStatus`, `agcCnt`, `rfBlockGnssBand`. Also calls the helper method `getAntennaStatus()` every 5 seconds: the combined antenna status from all RF blocks |
 
+## AssistNow
+
+| Example | Message(s) | Details |
+| --- | --- | --- |
+| AssistNowExample1_readNavigationDatabase | UBX-MGA-DBD (`readNavigationDatabase()`). **MAX-M10S** | Enables AssistNow Autonomous (`setAopCfg()`) and shows NAV-SAT `aopAvail` and NAV-AOPSTATUS `status` until a key is pressed, then reads the navigation database and prints it as a C array. On ESP32, also writes it to microSD as raw UBX (`/MGADBD.UBX`, CS pin 5). Includes diagnostics for GitHub issue #5: captures the raw data with `setOutputPort()` and reports any UBX-MGA-DBD message missing from the database |
+| AssistNowExample2_pushNavigationDatabase | UBX-MGA-DBD (`pushAssistNowData()`) and UBX-MGA-INI-TIME_UTC (`setUTCTimeAssistance()`). **MAX-M10S** | Pushes the navigation database read by AssistNowExample1 back to the module. On ESP32, reads it from microSD (`/MGADBD.UBX`, CS pin 5). If the file can not be read, or on other hardware, pushes `database[databaseLen]` from `database.h` - copy and paste the C array printed by AssistNowExample1 into it. On ESP32, also connects to WiFi (credentials in `secrets.h`) and gets the time from NTP (`configTime()`). Checks the database (UBX-MGA-DBD count and checksums), optionally performs a GNSS cold start (`cfgRst()`), enables `setAckAiding()`, then pushes the time (ESP32) and the database with `SFE_UBLOX_MGA_ASSIST_ACK_YES`. Then polls NAV-PVT (`getNAVPVT()`, `getFixType()`, `getSIV()`) and prints the time to the first 3D fix |
+
 ## Data logging
 
 These examples log the complete messages to microSD card, in UBX format, using the library's file buffer (`setFileBufferSize()`, `logUBX()`, `fileBufferAvailable()`, `extractFileBufferData()`). Callbacks are used only to count the messages. They need an ESP32 (or another processor with plenty of RAM).

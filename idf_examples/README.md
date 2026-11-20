@@ -64,6 +64,13 @@ The user creates the bus (`i2c_new_master_bus()`, `spi_bus_initialize()` or `uar
 | CallbackExample7_NMEA_GSV | NMEA GSV (every 2 epochs) | `xxGSV` (talker ID), `signalId`. Per satellite block (up to 4 per message): `svid`, `elv`, `az`, `cno` |
 | CallbackExample8_MONCOMMS | UBX MON-COMMS (every 2 epochs) | `nPorts`, `protId0`-`protId3`. Per port block: `portId`, `txBytes`, `rxBytes`, `msgs0`-`msgs3`, `skipped` |
 
+## AssistNow
+
+| Example | Message(s) | Details |
+| --- | --- | --- |
+| AssistNowExample1_readNavigationDatabase | UBX-MGA-DBD (`readNavigationDatabase()`). **MAX-M10S** | Enables AssistNow Autonomous (`setAopCfg()`) and shows NAV-SAT `aopAvail` and NAV-AOPSTATUS `status` until a key is pressed, then reads the navigation database and prints it as a C array. Also writes it to microSD as raw UBX (`/sdcard/MGADBD.UBX`, `main/sd_card.c`) on SPI2_HOST: SCK GPIO 18, POCI GPIO 19, PICO GPIO 23, CS GPIO 5. Includes diagnostics for GitHub issue #5: captures the raw data with `setOutputPort()` and reports any UBX-MGA-DBD message missing from the database |
+| AssistNowExample2_pushNavigationDatabase | UBX-MGA-DBD (`pushAssistNowData()`) and UBX-MGA-INI-TIME_UTC (`setUTCTimeAssistance()`). **MAX-M10S** | Pushes the navigation database read by AssistNowExample1 back to the module. Reads it from microSD (`/sdcard/MGADBD.UBX`, `main/sd_card.c`) on SPI2_HOST: SCK GPIO 18, POCI GPIO 19, PICO GPIO 23, CS GPIO 5. If the file can not be read, pushes `database[databaseLen]` from `main/database.h` - copy and paste the C array printed by AssistNowExample1 into it. Connects to WiFi (credentials in `main/secrets.h`) and gets the time from NTP (`main/wifi_time.c`: `esp_wifi` and `esp_netif_sntp`). Checks the database (UBX-MGA-DBD count and checksums), optionally performs a GNSS cold start (`cfgRst()`), enables `setAckAiding()`, then pushes the time and the database with `SFE_UBLOX_MGA_ASSIST_ACK_YES`. Then polls NAV-PVT (`getNAVPVT()`, `getFixType()`, `getSIV()`) and prints the time to the first 3D fix |
+
 ## Data logging
 
 These examples log the complete messages to microSD card, in UBX format, using the library's file buffer (`setFileBufferSize()`, `logUBX()`, `fileBufferAvailable()`, `extractFileBufferData()`). Callbacks are used only to count the messages. The SD card is mounted with the ESP-IDF FATFS VFS, and written with `fopen()` / `fwrite()` / `fclose()`. The SD card code is in a small C file in each example's `main` folder. Press any key in the monitor to start logging, and again to stop.
