@@ -7112,7 +7112,7 @@ bool DevUBLOXGNSS::setAutoUBXrate(uint8_t Class, uint8_t ID, uint8_t rate, bool 
   if (rate > 127)
     rate = 127;
 
-  uint32_t key;
+  uint32_t key = 0; // Initialize to 0 ("no key"). Avoids a GCC 13 maybe-uninitialized error (ESP-IDF v5.3)
   if (ubxMessages.getMsgOutKey(Class, ID, msgOutKeyPortIndex(), &key) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
   // A key of 0 means this message has no CFG-MSGOUT key for this port - e.g. NAV-AOPSTATUS has
@@ -7275,7 +7275,7 @@ bool DevUBLOXGNSS::setAutoNMEArate(const char *msgId, uint8_t rate, bool implici
   if (rate > 127)
     rate = 127;
 
-  uint32_t key;
+  uint32_t key = 0; // Initialize to 0 ("no key"). Avoids a GCC 13 maybe-uninitialized error (ESP-IDF v5.3)
   if (nmeaMessages.getMsgOutKey(msgId, msgOutKeyPortIndex(), &key) != SFE_UBLOX_STATUS_SUCCESS)
     return false;
   // A key of 0 means this message has no CFG-MSGOUT key for this port. Return now: sending key 0
