@@ -6,16 +6,20 @@
 # REPOSITORY: sparkfun/SparkFun_u-blox_GNSS_v4
 # WORKFLOW:   idf_component_upload.yml
 # BRANCH:     main
+#
+# Because the trusted uploader is restricted to BRANCH main, this workflow must be run manually
+# from main (Actions > Upload to IDF Component Registry > Run workflow), after the release has been
+# published. It is NOT triggered by the release itself: a run triggered by a published release is
+# tied to the release tag (e.g. refs/tags/v4.1.2), not to a branch, and the registry rejects the
+# upload with "You are not authorized to perform this action".
+#
+# The version comes from library.properties and is passed to the upload action, so it
+# overrides the version in idf_component.yml
 
 name: Upload to IDF Component Registry
 
 on:
-  workflow_dispatch:
-    branches:
-      - main
-  release:
-    types:
-      - published
+  workflow_dispatch: # Run manually. Choose the branch (main) in the "Run workflow" dialog
 
 jobs:
   upload_components:
