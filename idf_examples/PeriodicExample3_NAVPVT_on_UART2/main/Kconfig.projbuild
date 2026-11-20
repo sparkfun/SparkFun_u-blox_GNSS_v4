@@ -1,0 +1,26 @@
+menu "Example Configuration"
+
+    config EXAMPLE_UART_PORT_NUM
+        int "UART port number"
+        range 1 2
+        default 1
+        help
+            The ESP32 UART connected to the GNSS module's UART2. (UART0 is usually the console.)
+
+    config EXAMPLE_UART_BAUD_RATE
+        int "UART baud rate"
+        default 38400
+        help
+            The baud rate of the GNSS module's UART2. u-blox X20 and F9 modules default to 38400 baud.
+
+    config EXAMPLE_UART_TX_GPIO
+        int "UART TX GPIO (connect to GNSS RX2)"
+        range 0 63
+        default 17
+
+    config EXAMPLE_UART_RX_GPIO
+        int "UART RX GPIO (connect to GNSS TX2)"
+        range 0 63
+        default 16
+
+endmenu
