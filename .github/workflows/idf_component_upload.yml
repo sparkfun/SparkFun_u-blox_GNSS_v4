@@ -28,7 +28,7 @@ jobs:
 
       - name: Get version
         run: |
-          echo "currentVersion=$(grep -Po "(?<=version=)([0-9]).([0-9]).([0-9])" ./library.properties)" >> "$GITHUB_ENV"
+          echo "currentVersion=$(grep -Po "(?<=^version=)[0-9]+\.[0-9]+\.[0-9]+" ./library.properties)" >> "$GITHUB_ENV"
 
       - name: Upload components
         uses: espressif/upload-components-ci-action@v2

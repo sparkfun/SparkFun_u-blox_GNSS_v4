@@ -72,6 +72,19 @@ protected:
     COMM_TYPE_SERIAL,
     COMM_TYPE_SPI
   } _commType = COMM_TYPE_I2C; // Controls which port we look to for incoming bytes
+  // _commType (above) says which bus THIS LIBRARY INSTANCE uses to talk to the module.
+  // ubxMessage/nmeaMessage's _msgOutKeys[] uses a DIFFERENT enumeration - the index of one of
+  // the module's four CFG-MSGOUT ports: {I2C, SPI, UART1, UART2}. The two orderings only agree
+  // for I2C (both 0); passing _commType straight into getMsgOutKey() silently picks the wrong
+  // port's key for SPI and Serial, and can never reach UART2 at all. msgOutKeyPortIndex()
+  // bridges the two - see its definition in u-blox_GNSS.cpp for the full explanation.
+  /**
+   * @brief Translate _commType (and _UART2) into the CFG-MSGOUT port index used by
+   * ubxMessage::getMsgOutKey()/nmeaMessage::getMsgOutKey() - {I2C, SPI, UART1, UART2}.
+   *
+   * @return 0 for I2C, 1 for SPI, 2 for UART1, or 3 for UART2 (UART1 vs UART2 per _UART2).
+   */
+  uint8_t msgOutKeyPortIndex() const;
   /**
    * @brief Common initialization shared by every begin() overload: allocates buffers and waits for signs of life.
    *

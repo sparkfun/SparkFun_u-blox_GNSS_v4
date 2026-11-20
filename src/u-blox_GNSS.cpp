@@ -7048,6 +7048,36 @@ bool DevUBLOXGNSS::getUBXfield(uint8_t Class, uint8_t ID, const char *field, ubx
   return (ubxMessages.extractValue(Class, ID, field, value) == SFE_UBLOX_STATUS_SUCCESS);
 }
 
+// _commType (I2C/SERIAL/SPI - see u-blox_GNSS.h) says which bus THIS LIBRARY INSTANCE uses to
+// talk to the module. ubxMessage/nmeaMessage's _msgOutKeys[] is a DIFFERENT enumeration - the
+// index of one of the module's four CFG-MSGOUT ports: {I2C, SPI, UART1, UART2}. The two
+// orderings only happen to agree for I2C (both 0) - passing _commType straight into
+// getMsgOutKey() (as setAutoUBXrate()/setAutoNMEArate() used to) silently picks the SPI key for
+// a Serial (UART) connection and the UART1 key for a SPI connection, and can never reach UART2
+// at all, since _commType has no UART2 value of its own - see GitHub issue #4. This is the one
+// place that bridges the two enumerations correctly, reusing the existing _UART2 flag (already
+// used the same way in isConnected()) rather than adding a new _commType value, so every other
+// _commType == COMM_TYPE_SERIAL comparison elsewhere in this file is unaffected.
+/**
+ * @brief Translate _commType (and _UART2) into the CFG-MSGOUT port index used by
+ * ubxMessage::getMsgOutKey()/nmeaMessage::getMsgOutKey() - {I2C, SPI, UART1, UART2}.
+ *
+ * @return 0 for I2C, 1 for SPI, 2 for UART1, or 3 for UART2 (UART1 vs UART2 per _UART2).
+ */
+uint8_t DevUBLOXGNSS::msgOutKeyPortIndex() const
+{
+  switch (_commType)
+  {
+  case COMM_TYPE_SPI:
+    return 1; // SPI
+  case COMM_TYPE_SERIAL:
+    return _UART2 ? 3 : 2; // UART2 : UART1
+  case COMM_TYPE_I2C:
+  default:
+    return 0; // I2C
+  }
+}
+
 bool DevUBLOXGNSS::setAutoUBX(const char *Class, const char *ID, bool enabled, uint8_t layer, uint16_t maxWait)
 {
   return setAutoUBXrate(Class, ID, enabled ? 1 : 0, true, layer, maxWait);
@@ -7081,7 +7111,13 @@ bool DevUBLOXGNSS::setAutoUBXrate(uint8_t Class, uint8_t ID, uint8_t rate, bool 
     rate = 127;
 
   uint32_t key;
-  if (ubxMessages.getMsgOutKey(Class, ID, _commType, &key) != SFE_UBLOX_STATUS_SUCCESS)
+  if (ubxMessages.getMsgOutKey(Class, ID, msgOutKeyPortIndex(), &key) != SFE_UBLOX_STATUS_SUCCESS)
+    return false;
+  // A key of 0 means this message has no CFG-MSGOUT key for this port - e.g. NAV-AOPSTATUS has
+  // no UART2 key, and HNR-ATT/INS/PVT and SEC-UNIQID have none at all. Return now: sending key 0
+  // would be NACK'd, and the fallback below would then mark the message as automatic anyway.
+  // (If the module outputs the message some other way, use assumeAutoUBX() instead.)
+  if (key == 0)
     return false;
 
   // Sets the message output rate and updates automaticFlags with a three-tier strategy:
@@ -7238,7 +7274,12 @@ bool DevUBLOXGNSS::setAutoNMEArate(const char *msgId, uint8_t rate, bool implici
     rate = 127;
 
   uint32_t key;
-  if (nmeaMessages.getMsgOutKey(msgId, _commType, &key) != SFE_UBLOX_STATUS_SUCCESS)
+  if (nmeaMessages.getMsgOutKey(msgId, msgOutKeyPortIndex(), &key) != SFE_UBLOX_STATUS_SUCCESS)
+    return false;
+  // A key of 0 means this message has no CFG-MSGOUT key for this port. Return now: sending key 0
+  // would be NACK'd, and the fallback below would then mark the message as automatic anyway.
+  // (If the module outputs the message some other way, use assumeAutoNMEA() instead.)
+  if (key == 0)
     return false;
 
   // Sets the message output rate and updates automaticFlags with a three-tier strategy:

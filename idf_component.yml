@@ -1,4 +1,4 @@
-version: "4.1.0"
+version: "4.1.2"
 description: "SparkFun u-blox GNSS v4: I2C, SPI and UART driver for u-blox GNSS modules (UBX, NMEA, RTCM)"
 url: "https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4"
 repository: "https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4.git"
@@ -38,6 +38,7 @@ examples:
   - path: idf_examples/PollingExample5_GPZDA
   - path: idf_examples/PeriodicExample1_NAVHPPOSLLH
   - path: idf_examples/PeriodicExample2_GPGGA
+  - path: idf_examples/PeriodicExample3_NAVPVT_on_UART2
   - path: idf_examples/CallbackExample1_NAVHPPOSLLH
   - path: idf_examples/CallbackExample2_GPRMC
   - path: idf_examples/CallbackExample4_NAVSAT

@@ -29,6 +29,7 @@ Unless stated otherwise, the examples use I2C (Qwiic) and print to Serial at 115
 | --- | --- | --- |
 | PeriodicExample1_NAVHPPOSLLH | UBX NAV-HPPOSLLH (enabled with `setAutoUBX()`) | `getNAVHPPOSLLH()` returns true when fresh data arrives: `iTOW`, `lat`, `lon` (as `.I4`), `hAcc` |
 | PeriodicExample2_GPGGA | NMEA GGA (output by default; `assumeAutoNMEA("GGA", true)`) | `getNMEA("GGA")` returns true when fresh data arrives: `time`, `lat`, `NS`, `lon`, `EW`, `alt` |
+| PeriodicExample3_NAVPVT_on_UART2 | UBX NAV-PVT on the module's **UART2** (`connectedToUART2()`, then `setAutoUBXrate("NAV", "PVT", 1, true, VAL_LAYER_RAM)` - the code from issue #4). Serial1 at 38400 baud. With the default (X20) configuration UART2 accepts UBX but does not output it; `begin()` still connects because the module replies to polls on the port they arrive on, and `setUART2Output(COM_TYPE_UBX)` enables UBX output so the periodic NAV-PVT is output. `setUART2Input()` keeps UBX input enabled | Reads back the NAV-PVT output rate on each port (`getVal8()`): expect `UART2: 1`. Then `getNAVPVT()` returns true when fresh data arrives: helper methods `getTimeOfWeek()`, `getFixType()`, `getSIV()`, `getLatitude()`, `getLongitude()`, `getAltitudeMSL()` |
 
 ## Periodic with callback
 

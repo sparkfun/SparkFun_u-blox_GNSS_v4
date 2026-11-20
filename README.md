@@ -29,7 +29,7 @@ u-blox make some incredible GNSS receivers covering everything from low-cost, hi
 
 ## Arduino and ESP-IDF
 
-With release v4.1.0, this library is compatible with both the Arduino IDE and the Espressif ESP-IDF.
+From release v4.1.0, this library is compatible with both the Arduino IDE and the Espressif ESP-IDF.
 
 It includes examples for both platforms: [**examples**](https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4/blob/main/examples) contains the Arduino examples; [**idf_examples**](https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4/blob/main/idf_examples) contains the IDF examples.
 All examples have been tested on ESP32 hardware.
