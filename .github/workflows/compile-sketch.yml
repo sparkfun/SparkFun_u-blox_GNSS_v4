@@ -104,7 +104,7 @@ jobs:
           sketch-paths: |
             - examples/PollingExample1_PositionVelocityTime
           enable-warnings-report: true
-          enable-deltas-report: true
+          enable-deltas-report: false
           # verbose: true
 
     # outputs:
