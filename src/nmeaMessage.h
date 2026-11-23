@@ -198,7 +198,7 @@ public:
      * @return true if 'fieldName' was found (and *value filled in); false if 'buffer' is null,
      * malformed, too short, 'blockIndex' is out of range, or the field name was not found.
      */
-    bool extractFieldFrom(const uint8_t *buffer, const char *fieldName, sfe_string_t &value,
+    bool extractFieldFrom(const uint8_t *buffer, const char *fieldName, SparkFun_UBLOX_GNSS::sfe_string_t &value,
                            const void *fieldsOverride = nullptr, uint8_t numFieldsOverride = 0,
                            uint16_t blockIndex = 0) const
     {
@@ -358,7 +358,7 @@ public:
                         numDPs++;
                     }
                 }
-                sfe_string_from_double(value, field, numDPs);
+                SparkFun_UBLOX_GNSS::sfe_string_from_double(value, field, numDPs);
             }
                 return true;
             case nmeaDataTypeDDDMM:
@@ -382,7 +382,7 @@ public:
                         numDPs++;
                     }
                 }
-                sfe_string_from_double(value, field, numDPs);
+                SparkFun_UBLOX_GNSS::sfe_string_from_double(value, field, numDPs);
             }
                 return true;
             case nmeaDataTypeChar:
@@ -422,7 +422,7 @@ public:
                 }
                 if (isNegative)
                     field = -field;
-                sfe_string_from_double(value, field, numDPs);
+                SparkFun_UBLOX_GNSS::sfe_string_from_double(value, field, numDPs);
             }
                 return true;
             }

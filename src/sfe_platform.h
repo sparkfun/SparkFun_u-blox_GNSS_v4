@@ -26,6 +26,9 @@
  *   sfe_string_from_double()  format a double with a given number of decimal places
  *   DEC / HEX                 number bases for debugPrint()
  *
+ * Everything here is inside namespace SparkFun_UBLOX_GNSS, so this library can be used together with other
+ * SparkFun libraries which have their own sfe_platform.h.
+ *
  * The platform is selected automatically:
  *   ARDUINO defined           -> Arduino (this includes arduino-esp32 used as an ESP-IDF component)
  *   ESP_PLATFORM defined      -> native ESP-IDF
@@ -39,12 +42,14 @@
 // Arduino
 // ---------------------------------------------------------------------------------------------
 
-#define SFE_ARDUINO 1
+#define SFE_UBLOX_GNSS_ARDUINO 1
 
 #include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
 
+namespace SparkFun_UBLOX_GNSS
+{
 typedef String sfe_string_t;
 
 static inline unsigned long sfe_millis(void) { return millis(); }
@@ -57,13 +62,15 @@ static inline void sfe_string_from_double(sfe_string_t &str, double value, int d
   str = String(value, decimalPlaces); // Pass int, as the original code did: the second parameter type differs between cores (unsigned int on ESP32, unsigned char on AVR)
 }
 
+} // namespace SparkFun_UBLOX_GNSS
+
 #elif defined(ESP_PLATFORM)
 
 // ---------------------------------------------------------------------------------------------
 // Native ESP-IDF
 // ---------------------------------------------------------------------------------------------
 
-#define SFE_ESP_IDF 1
+#define SFE_UBLOX_GNSS_ESP_IDF 1
 
 #include <stdint.h>
 #include <stddef.h>
@@ -84,6 +91,8 @@ static inline void sfe_string_from_double(sfe_string_t &str, double value, int d
 #define HEX 16
 #endif
 
+namespace SparkFun_UBLOX_GNSS
+{
 typedef std::string sfe_string_t;
 
 static inline unsigned long sfe_millis(void) { return (unsigned long)(esp_timer_get_time() / 1000ULL); }
@@ -126,6 +135,8 @@ static inline void sfe_string_from_double(sfe_string_t &str, double value, int d
   snprintf(buf, sizeof(buf), "%.*f", decimalPlaces, value);
   str = buf;
 }
+
+} // namespace SparkFun_UBLOX_GNSS
 
 #else
 

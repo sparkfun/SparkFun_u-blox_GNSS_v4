@@ -86,7 +86,7 @@ This library can also be used as a native component for the Espressif ESP-IDF - 
   * SPI: `spi_bus_initialize()` then `myGNSS.begin(SPI2_HOST, csGpio)`
   * UART: `uart_driver_install()`, `uart_param_config()` and `uart_set_pin()` then `myGNSS.begin(UART_NUM_1)`
 * `enableDebugging()` prints to the console (stdout) by default
-* NMEA field getters return `std::string` (`sfe_string_t`) instead of the Arduino `String`
+* NMEA field getters return `std::string` (`SFE_UBLOX_GNSS::sfe_string_t`) instead of the Arduino `String`
 * A 1000Hz FreeRTOS tick (`CONFIG_FREERTOS_HZ=1000`) is recommended
 * ESP-IDF examples are in [**idf_examples**](https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4/blob/main/idf_examples). Build, flash and monitor with `idf.py -p PORT flash monitor`
 

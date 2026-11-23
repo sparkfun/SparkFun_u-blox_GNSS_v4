@@ -233,7 +233,7 @@ extern "C" void app_main(void)
 
     printf("Press any key to stop logging.\n");
 
-    lastPrint = sfe_millis(); // Initialize lastPrint
+    lastPrint = SparkFun_UBLOX_GNSS::sfe_millis(); // Initialize lastPrint
 
     while (true)
     {
@@ -261,7 +261,7 @@ extern "C" void app_main(void)
 
         // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-        if ((sfe_millis() - lastPrint) > 1000) // Print the message count once per second
+        if ((SparkFun_UBLOX_GNSS::sfe_millis() - lastPrint) > 1000) // Print the message count once per second
         {
             // Print how many message groups have been received
             printf("Number of message groups received: SFRBX: %d RAWX: %d\n", numSFRBX, numRAWX);
@@ -275,7 +275,7 @@ extern "C" void app_main(void)
                 printf("Warning: the file buffer has been over 80%% full. Some data may have been lost.\n");
             }
 
-            lastPrint = sfe_millis(); // Update lastPrint
+            lastPrint = SparkFun_UBLOX_GNSS::sfe_millis(); // Update lastPrint
         }
 
         // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

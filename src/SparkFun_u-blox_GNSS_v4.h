@@ -42,7 +42,7 @@ public:
    */
   SFE_UBLOX_GNSS() { _commType = COMM_TYPE_I2C; }
 
-#if defined(SFE_ARDUINO)
+#if defined(SFE_UBLOX_GNSS_ARDUINO)
 
   ///////////////////////////////////////////////////////////////////////
   // begin()
@@ -113,7 +113,7 @@ public:
     return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
   }
 
-#elif defined(SFE_ESP_IDF)
+#elif defined(SFE_UBLOX_GNSS_ESP_IDF)
 
   /**
    * @brief Initialize I2C communication with the GNSS module (ESP-IDF).
@@ -154,7 +154,7 @@ public:
    */
   SFE_UBLOX_GNSS_SPI() { _commType = COMM_TYPE_SPI; }
 
-#if defined(SFE_ARDUINO)
+#if defined(SFE_UBLOX_GNSS_ARDUINO)
 
   ///////////////////////////////////////////////////////////////////////
   // begin()
@@ -254,7 +254,7 @@ public:
     return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
   }
 
-#elif defined(SFE_ESP_IDF)
+#elif defined(SFE_UBLOX_GNSS_ESP_IDF)
 
   /**
    * @brief Initialize SPI communication with the GNSS module (ESP-IDF).
@@ -315,7 +315,7 @@ public:
    */
   SFE_UBLOX_GNSS_SERIAL() { _commType = COMM_TYPE_SERIAL; }
 
-#if defined(SFE_ARDUINO)
+#if defined(SFE_UBLOX_GNSS_ARDUINO)
 
   ///////////////////////////////////////////////////////////////////////
   // begin()
@@ -356,7 +356,7 @@ public:
     return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
   }
 
-#elif defined(SFE_ESP_IDF)
+#elif defined(SFE_UBLOX_GNSS_ESP_IDF)
 
   /**
    * @brief Initialize Serial (UART) communication with the GNSS module (ESP-IDF).
@@ -396,7 +396,7 @@ public:
    */
   SFE_UBLOX_GNSS_SUPER(){};
 
-#if defined(SFE_ARDUINO)
+#if defined(SFE_UBLOX_GNSS_ARDUINO)
 
   /**
    * @brief Initialize I2C communication with the GNSS module using the default Wire port.
@@ -528,7 +528,7 @@ public:
     return this->DevUBLOXGNSS::init(maxWait, assumeSuccess);
   }
 
-#elif defined(SFE_ESP_IDF)
+#elif defined(SFE_UBLOX_GNSS_ESP_IDF)
 
   bool begin(i2c_master_bus_handle_t bus, uint8_t deviceAddress = kUBLOXGNSSDefaultAddress, uint16_t maxWait = kUBLOXGNSSDefaultMaxWait, bool assumeSuccess = false)
   {

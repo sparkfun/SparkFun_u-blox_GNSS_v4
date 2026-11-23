@@ -31,6 +31,8 @@
 #include "sfe_platform.h"
 #include "u-blox_GNSS.h"
 
+using namespace SparkFun_UBLOX_GNSS; // The platform helpers (sfe_millis() etc.) and types are in this namespace
+
 DevUBLOXGNSS::DevUBLOXGNSS(void)
 {
   // Constructor

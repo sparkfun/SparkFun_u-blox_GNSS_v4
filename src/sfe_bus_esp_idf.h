@@ -13,7 +13,7 @@
  * Native ESP-IDF implementation of the hardware bus classes (SfeI2C, SfeSPI, SfeSerial) and of the
  * debug / message output ports (SfeOutput, SfePrint).
  *
- * Included by sfe_bus.h when building as an ESP-IDF component (SFE_ESP_IDF). Do not include directly.
+ * Included by sfe_bus.h when building as an ESP-IDF component (SFE_UBLOX_GNSS_ESP_IDF). Do not include directly.
  * The Arduino equivalents are in sfe_bus.h / sfe_bus.cpp.
  *
  * The user creates and owns the bus (i2c_new_master_bus(), spi_bus_initialize(),
@@ -24,7 +24,7 @@
 
 #include "sfe_platform.h"
 
-#if defined(SFE_ESP_IDF)
+#if defined(SFE_UBLOX_GNSS_ESP_IDF)
 
 #include "sdkconfig.h"
 #include "driver/i2c_master.h"
@@ -270,6 +270,9 @@ namespace SparkFun_UBLOX_GNSS
 };
 
 // The type used by the public API for debug and message output ports: enableDebugging(), setNMEAOutputPort(), etc.
-typedef SparkFun_UBLOX_GNSS::SfeOutput sfe_print_t;
+namespace SparkFun_UBLOX_GNSS
+{
+typedef SfeOutput sfe_print_t;
+} // namespace SparkFun_UBLOX_GNSS
 
-#endif // SFE_ESP_IDF
+#endif // SFE_UBLOX_GNSS_ESP_IDF

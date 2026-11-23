@@ -47,6 +47,10 @@ const int debugPin = -1;
 class DevUBLOXGNSS : public SparkFun_UBLOX_GNSS::SfeDebugPrint
 {
 public:
+  // The platform types, from namespace SparkFun_UBLOX_GNSS (see sfe_platform.h and sfe_bus.h)
+  typedef SparkFun_UBLOX_GNSS::sfe_print_t sfe_print_t;   ///< The print type: Print on Arduino; SfeOutput on ESP-IDF
+  typedef SparkFun_UBLOX_GNSS::sfe_string_t sfe_string_t; ///< The string type: String on Arduino; std::string on ESP-IDF
+
   /**
    * @brief Construct a new DevUBLOXGNSS object. Call begin() (via one of the SFE_UBLOX_GNSS_* subclasses) before use.
    */
@@ -335,7 +339,7 @@ public:
    * some SAMD boards).
    * @param printLimitedDebug If true, only print messages flagged as "important". Defaults to false (print everything).
    */
-#if defined(SFE_ESP_IDF)                                                              // Native ESP-IDF: default to stdout (the console)
+#if defined(SFE_UBLOX_GNSS_ESP_IDF)                                                   // Native ESP-IDF: default to stdout (the console)
   void enableDebugging(sfe_print_t &debugPort = SparkFun_UBLOX_GNSS::sfeStdout, bool printLimitedDebug = false); // Given a port to print to, enable debug messages. Default to all, not important-only.
 #elif defined(ARDUINO_ARCH_SAMD)                                                      // Is this a SAMD board?
 #if defined(USB_VID)                                                                  // Is the USB Vendor ID defined?

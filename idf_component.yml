@@ -1,4 +1,4 @@
-version: "4.1.2"
+version: "4.1.3"
 description: "SparkFun u-blox GNSS v4: I2C, SPI and UART driver for u-blox GNSS modules (UBX, NMEA, RTCM)"
 url: "https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4"
 repository: "https://github.com/sparkfun/SparkFun_u-blox_GNSS_v4.git"
