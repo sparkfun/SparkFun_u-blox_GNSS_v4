@@ -99,6 +99,9 @@ jobs:
         with:
           platforms: ${{ matrix.board.platforms }}
           fqbn: ${{ matrix.board.fqbn }}
+          # Authenticate any GitHub API requests made by the action. Without this, the requests are
+          # unauthenticated and can fail with "API rate limit exceeded"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           libraries: |
             - source-path: ./
           sketch-paths: |
