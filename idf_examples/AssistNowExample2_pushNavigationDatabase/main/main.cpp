@@ -282,6 +282,9 @@ static unsigned long millisNow(void)
 
 extern "C" void app_main(void)
 {
+    // Give the native USB serial port time to (re)connect, so the console does not miss the first messages
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
     printf("SparkFun u-blox Example\n");
 
     // Make stdin (the console) non-blocking, so keyPressed() can check for a key press without waiting

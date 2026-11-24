@@ -40,6 +40,9 @@ static SFE_UBLOX_GNSS_SPI myGNSS; // SFE_UBLOX_GNSS_SPI uses SPI. For I2C or Ser
 
 extern "C" void app_main(void)
 {
+    // Give the native USB serial port time to (re)connect, so the console does not miss the first messages
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
     printf("SparkFun u-blox Example\n");
 
     // Initialize the SPI bus

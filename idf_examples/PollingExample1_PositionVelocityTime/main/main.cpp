@@ -38,6 +38,9 @@ static SFE_UBLOX_GNSS myGNSS; // SFE_UBLOX_GNSS uses I2C. For Serial or SPI, see
 
 extern "C" void app_main(void)
 {
+    // Give the native USB serial port time to (re)connect, so the console does not miss the first messages
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
     printf("SparkFun u-blox Example\n");
 
     // Create the I2C bus
